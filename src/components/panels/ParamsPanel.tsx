@@ -2,7 +2,8 @@ import { useAppStore } from '../../store/useAppStore';
 import { FILL_STANDARDS } from '../../core/traySizing';
 import { STANDARD_HEIGHTS_MM, STANDARD_SPANS_M, STANDARD_WIDTHS_MM } from '../../core/trayStandards';
 import type { ArrangementMode, FillStandard, TrayType } from '../../core/types';
-import { GlassCard, NumberField, SectionTitle, SelectField, Toggle, useT } from '../ui';
+import { GlassCard, NumberField, SectionTitle, SelectField, Toggle } from '../ui';
+import { useT } from '../ui/useT';
 
 /** Design parameters - section A of the reference workbook, made live. */
 export function ParamsPanel() {

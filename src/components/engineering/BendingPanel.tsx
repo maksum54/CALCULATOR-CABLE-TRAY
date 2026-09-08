@@ -1,6 +1,8 @@
 import { useAppStore } from '../../store/useAppStore';
 import { useCalculations } from '../../store/useCalculations';
-import { Badge, GlassCard, NoteList, NumberField, SectionTitle, StatRow, fmt, useT } from '../ui';
+import { Badge, GlassCard, NoteList, NumberField, SectionTitle, StatRow } from '../ui';
+import { useT } from '../ui/useT';
+import { fmt } from '../ui/format';
 
 /** Minimum bending radius per cable type, fitting check and the pulling estimate. */
 export function BendingPanel() {

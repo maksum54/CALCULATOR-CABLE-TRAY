@@ -1,18 +1,24 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { useAppStore } from './store/useAppStore';
 import { useCalculations } from './store/useCalculations';
-import { Button, GlassCard, useT } from './components/ui';
+import { Button, GlassCard } from './components/ui';
+import { useT } from './components/ui/useT';
 import { ParamsPanel } from './components/panels/ParamsPanel';
 import { ScheduleTable } from './components/schedule/ScheduleTable';
 import { SectionView } from './components/section/SectionView';
 import { ResultsPanel } from './components/results/ResultsPanel';
-import { View3D } from './components/view3d/View3D';
 import { ThermalPanel } from './components/engineering/ThermalPanel';
 import { SupportPanel } from './components/engineering/SupportPanel';
 import { BendingPanel } from './components/engineering/BendingPanel';
 import { CatalogPanel } from './components/engineering/CatalogPanel';
-import { ExportPanel } from './components/export/ExportPanel';
 import type { DictKey } from './i18n';
+
+// Three.js and the export writers (ExcelJS, jsPDF) are the two heaviest dependencies in the
+// project and neither is needed to open the app, so both tabs are fetched on first visit.
+const View3D = lazy(() => import('./components/view3d/View3D').then((m) => ({ default: m.View3D })));
+const ExportPanel = lazy(() =>
+  import('./components/export/ExportPanel').then((m) => ({ default: m.ExportPanel })),
+);
 
 const TABS: { id: string; key: DictKey }[] = [
   { id: 'schedule', key: 'tabSchedule' },
@@ -65,17 +71,36 @@ export default function App() {
           <main className="tab-enter min-h-0 overflow-auto scroll-thin" key={tab}>
             {tab === 'schedule' && <ScheduleTable />}
             {tab === 'section' && <SectionView />}
-            {tab === 'view3d' && <View3D />}
+            {tab === 'view3d' && (
+              <Suspense fallback={<LazyFallback />}>
+                <View3D />
+              </Suspense>
+            )}
             {tab === 'results' && <ResultsPanel />}
             {tab === 'thermal' && <ThermalPanel />}
             {tab === 'support' && <SupportPanel />}
             {tab === 'bending' && <BendingPanel />}
             {tab === 'catalog' && <CatalogPanel />}
-            {tab === 'export' && <ExportPanel />}
+            {tab === 'export' && (
+              <Suspense fallback={<LazyFallback />}>
+                <ExportPanel />
+              </Suspense>
+            )}
           </main>
         </div>
       </div>
     </div>
+  );
+}
+
+/** Placeholder while a lazily loaded tab is fetched. */
+function LazyFallback() {
+  return (
+    <GlassCard className="flex h-40 items-center justify-center">
+      <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+        Loading...
+      </span>
+    </GlassCard>
   );
 }
 

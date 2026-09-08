@@ -2,7 +2,9 @@ import { useAppStore } from '../../store/useAppStore';
 import { useCalculations } from '../../store/useCalculations';
 import { NEMA_CLASSES, ROD_SIZES, STANDARD_SPANS_M } from '../../core/trayStandards';
 import { calculateSupport } from '../../core/support';
-import { Badge, GlassCard, NoteList, SectionTitle, StatRow, fmt, useT } from '../ui';
+import { Badge, GlassCard, NoteList, SectionTitle, StatRow } from '../ui';
+import { useT } from '../ui/useT';
+import { fmt } from '../ui/format';
 
 /** Span, deflection, NEMA class and hanger capacity, plus a what-if sweep over the spans. */
 export function SupportPanel() {

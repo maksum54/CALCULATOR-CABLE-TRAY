@@ -2,12 +2,12 @@ import { useMemo, useState } from 'react';
 import { saveAs } from 'file-saver';
 import { useAppStore } from '../../store/useAppStore';
 import { useCalculations } from '../../store/useCalculations';
-import { buildWorkbook } from '../../export/excel';
-import { buildReport } from '../../export/pdf';
-import { buildSectionDxf } from '../../export/dxf';
-import { buildBimJson } from '../../export/json3d';
+// ExcelJS and jsPDF together outweigh the rest of the app, and most sessions never press a
+// single export button, so each writer is fetched on the click that needs it. sectionSvg has
+// no dependencies of its own and stays static - the SVG is also what feeds the PDF snapshot.
 import { buildSectionSvg, capture3D, svgToPng } from '../../export/sectionSvg';
-import { Badge, Button, GlassCard, SectionTitle, TextField, useT } from '../ui';
+import { Badge, Button, GlassCard, SectionTitle, TextField } from '../ui';
+import { useT } from '../ui/useT';
 import type { DictKey } from '../../i18n';
 
 type Job = 'excel' | 'pdf' | 'dxf' | 'json' | 'svg';
@@ -64,6 +64,7 @@ export function ExportPanel() {
 
   const exportExcel = () =>
     run('excel', async () => {
+      const { buildWorkbook } = await import('../../export/excel');
       const blob = await buildWorkbook({
         project, params, schedule,
         sizing: calc.sizing, weight: calc.weight, support: calc.support, derating: calc.derating,
@@ -81,6 +82,7 @@ export function ExportPanel() {
 
   const exportPdf = () =>
     run('pdf', async () => {
+      const { buildReport } = await import('../../export/pdf');
       const sectionPng = await svgToPng(sectionSvgString(false), 1800);
       // Live canvas first; otherwise the frame the 3D tab cached before it unmounted.
       const scenePng = capture3D() ?? scenePngCached ?? undefined;
@@ -102,7 +104,8 @@ export function ExportPanel() {
     });
 
   const exportDxf = () =>
-    run('dxf', () => {
+    run('dxf', async () => {
+      const { buildSectionDxf } = await import('../../export/dxf');
       const dxf = buildSectionDxf({
         tray, trayWidthMm: params.selectedTrayWidthMm, trayHeightMm: params.trayHeightMm,
         trayType: params.trayType, edgeClearanceMm: layout.edgeClearanceMm,
@@ -112,7 +115,8 @@ export function ExportPanel() {
     });
 
   const exportJson = () =>
-    run('json', () => {
+    run('json', async () => {
+      const { buildBimJson } = await import('../../export/json3d');
       const json = buildBimJson({
         project, params, sizing: calc.sizing, weight: calc.weight,
         support: calc.support, trays: calc.trays, schedule,

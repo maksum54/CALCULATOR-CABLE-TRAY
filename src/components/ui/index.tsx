@@ -1,17 +1,4 @@
-import {
-  createContext,
-  useContext,
-  type ChangeEvent,
-  type ReactNode,
-} from 'react';
-import { useAppStore } from '../../store/useAppStore';
-import { translate, type DictKey } from '../../i18n';
-
-/** Translation hook - every label in the UI goes through this. */
-export function useT() {
-  const lang = useAppStore((s) => s.lang);
-  return (key: DictKey, vars?: Record<string, string | number>) => translate(lang, key, vars);
-}
+import { type ChangeEvent, type ReactNode } from 'react';
 
 export function GlassCard({
   children,
@@ -302,18 +289,3 @@ export function NoteList({ items }: { items: string[] }) {
     </ul>
   );
 }
-
-const TabCtx = createContext<{ active: string; setActive: (id: string) => void }>({
-  active: '',
-  setActive: () => {},
-});
-export const useTabs = () => useContext(TabCtx);
-export const TabProvider = TabCtx.Provider;
-
-export const fmt = (n: number, digits = 1): string =>
-  Number.isFinite(n)
-    ? n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
-    : '-';
-
-export const pct = (n: number, digits = 2): string =>
-  Number.isFinite(n) ? `${(n * 100).toFixed(digits)} %` : '-';

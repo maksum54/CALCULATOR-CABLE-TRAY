@@ -2,7 +2,8 @@ import { useRef, useState } from 'react';
 import { importScheduleFromCsv, importScheduleFromExcel, type ImportResult } from '../../import/scheduleImport';
 import { findEntry } from '../../core/catalog';
 import { useAppStore } from '../../store/useAppStore';
-import { Badge, Button, useT } from '../ui';
+import { Badge, Button } from '../ui';
+import { useT } from '../ui/useT';
 
 /**
  * Tombol "Import Excel/CSV" + modal pratinjau. File dibaca sepenuhnya di
@@ -91,6 +92,21 @@ export function ImportScheduleButton() {
                 </p>
               </div>
               <Badge tone="accent">{t('importBadge')}</Badge>
+            </div>
+
+            {/* Kolom yang dipakai parser ditampilkan supaya user bisa memverifikasi bahwa
+                TYPE dan OD memang diambil dari kolom yang benar sebelum menerapkan. */}
+            <div
+              className="mx-5 mb-2 rounded-lg px-3 py-2 text-[11px]"
+              style={{ background: 'var(--glass-bg)', color: 'var(--text-muted)' }}
+            >
+              <span className="font-semibold">{t('importDetected')}:</span>{' '}
+              <span className="tabular">
+                {result.detected.sheet} &middot; {t('importDetectedHeader')} {result.detected.headerRow} &middot;{' '}
+                {t('importDetectedType')} {result.detected.typeColumn} &middot; {t('importDetectedOd')}{' '}
+                {result.detected.odColumn}
+                {result.detected.panel ? ` \u00b7 ${result.detected.panel}` : ''}
+              </span>
             </div>
 
             {result.warnings.length > 0 && (
