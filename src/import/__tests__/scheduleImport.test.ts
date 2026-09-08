@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { importScheduleFromExcel, matchCatalog, parseCoresAndSize } from '../scheduleImport';
+import { importScheduleFromExcel, matchCatalog, NEEDS_REVIEW, parseCoresAndSize } from '../scheduleImport';
 import { findEntry } from '../../core/catalog';
 
 const fixture = join(__dirname, 'fixtures', 'panel-schedule-DB-RMW-L0-LP.xlsx');
@@ -27,7 +27,7 @@ describe('parseCoresAndSize', () => {
 describe('matchCatalog', () => {
   it('resolves "NYY 3C x 2.5mm2" to the KMI entry, not an OD guess', () => {
     const m = matchCatalog('NYY 3C x 2.5mm2', 14);
-    expect(m).toEqual({ typeCode: 'NYY-3C-2.5', quality: 'exact' });
+    expect(m).toMatchObject({ typeCode: 'NYY-3C-2.5', quality: 'exact' });
   });
 
   it('flags a row whose OD disagrees with the catalogue', () => {
@@ -36,6 +36,26 @@ describe('matchCatalog', () => {
 
   it('falls back to the nearest OD when the text carries no size', () => {
     expect(matchCatalog('kabel outgoing', 20.5).quality).toBe('odFallback');
+  });
+
+  it('still takes the diameter from the catalogue when no OD is anywhere near', () => {
+    // 150 is far outside every catalogue OD (3.1 - 82.5 mm) - the sort of value you get when
+    // the column picked up as OD is really something else. The old behaviour dropped rows
+    // like this to a hard-coded 3C-4 (OD 13.5 mm), a diameter with no relation to the file.
+    // Now the nearest catalogue entry supplies the diameter and the row is flagged instead.
+    const m = matchCatalog('kabel feeder', 150);
+    expect(m.quality).toBe('odApprox');
+    const entry = findEntry(m.typeCode);
+    expect(entry).toBeDefined();
+    expect(entry!.odMm).toBe(82.5); // largest catalogue OD, the nearest to 150
+    expect(m.fileOdMm).toBe(150);
+    expect(m.odDeltaMm).toBeCloseTo(67.5, 6);
+  });
+
+  it('marks a row unresolved instead of inventing a type when there is no signal', () => {
+    const m = matchCatalog('', undefined);
+    expect(m.quality).toBe('unresolved');
+    expect(NEEDS_REVIEW).toContain(m.quality);
   });
 });
 

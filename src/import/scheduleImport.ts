@@ -23,11 +23,48 @@ export interface DetectedColumns {
   odColumn: string;
 }
 
-export interface ImportResult {
-  runs: CableRun[];
-  warnings: string[];
-  detected: DetectedColumns;
+/** Satu baris hasil import beserta jejak bagaimana tipe kabelnya ditentukan. */
+export interface ImportedRow {
+  run: CableRun;
+  quality: MatchQuality;
+  /** OD sebagaimana tertulis di file, kalau filenya memang punya kolom OD. */
+  fileOdMm?: number;
+  /** Selisih OD katalog terhadap OD di file, untuk pencocokan berbasis OD. */
+  odDeltaMm?: number;
+  /** Teks mentah yang dicoba dicocokkan - ditampilkan saat user harus memilih manual. */
+  sourceText: string;
 }
+
+/**
+ * Peringatan dikembalikan sebagai kode + jumlah, bukan kalimat jadi, supaya parser tetap
+ * murni dan teksnya bisa mengikuti bahasa yang sedang dipilih di UI.
+ */
+export type ImportWarningCode =
+  | 'skippedImplausible'
+  | 'odMismatch'
+  | 'odFallback'
+  | 'odApprox'
+  | 'unresolved';
+
+export interface ImportWarning {
+  code: ImportWarningCode;
+  count: number;
+  /** Ambang yang disebut pada pesan skippedImplausible. */
+  max?: number;
+}
+
+export interface ImportResult {
+  rows: ImportedRow[];
+  /** Ringkasan CableRun saja - urutannya sama dengan rows. */
+  runs: CableRun[];
+  warnings: ImportWarning[];
+  detected: DetectedColumns;
+  /** Baris yang dilewati karena jumlah run-nya mustahil untuk sebuah kabel. */
+  skippedImplausible: number;
+}
+
+/** Di atas ini jumlah run bukan lagi kabel - biasanya tabel konfigurasi/lebar tray. */
+const MAX_PLAUSIBLE_RUNS = 50;
 
 /** Grid teks hasil normalisasi file (baris x kolom), index 0-based. */
 type Grid = string[][];
@@ -106,11 +143,26 @@ function familyOf(text: string): string | undefined {
   return FAMILY_TOKENS.find((f) => u.includes(f));
 }
 
-export type MatchQuality = 'exact' | 'odFallback' | 'odMismatch' | 'guess';
+export type MatchQuality =
+  /** Teks tipe terbaca dan cocok dengan satu entri katalog. */
+  | 'exact'
+  /** Teks tipe tidak terbaca; dicocokkan lewat OD katalog terdekat, masih dalam toleransi. */
+  | 'odFallback'
+  /** Sama seperti odFallback tetapi di luar toleransi - diameter tetap dari katalog kita. */
+  | 'odApprox'
+  /** Tipe cocok, tetapi OD di file berbeda dari OD katalog. */
+  | 'odMismatch'
+  /** Tidak ada sinyal sama sekali - user harus memilih tipenya sendiri. */
+  | 'unresolved';
+
+/** Kualitas yang menuntut user memeriksa/memilih sebelum hasilnya dipakai menghitung. */
+export const NEEDS_REVIEW: readonly MatchQuality[] = ['odApprox', 'odMismatch', 'unresolved'];
 
 export interface CatalogMatch {
   typeCode: string;
   quality: MatchQuality;
+  fileOdMm?: number;
+  odDeltaMm?: number;
 }
 
 /**
@@ -140,14 +192,25 @@ export function matchCatalog(text: string, odHint?: number): CatalogMatch {
       if (odHint && odHint > 0) {
         // OD di file adalah pemutus kalau satu ukuran dimiliki beberapa family.
         const byOd = candidates.find((e) => Math.abs(e.odMm - odHint) <= 0.6);
-        if (byOd) return { typeCode: byOd.id, quality: 'exact' };
-        return { typeCode: candidates[0].id, quality: 'odMismatch' };
+        if (byOd) return { typeCode: byOd.id, quality: 'exact', fileOdMm: odHint };
+        return {
+          typeCode: candidates[0].id,
+          quality: 'odMismatch',
+          fileOdMm: odHint,
+          odDeltaMm: Math.abs(candidates[0].odMm - odHint),
+        };
       }
       return { typeCode: candidates[0].id, quality: 'exact' };
     }
   }
 
-  // 3) Tidak terbaca dari teks - pakai OD terdekat.
+  // 3) Teks tidak terbaca - jatuhkan ke OD katalog TERDEKAT, apa pun selisihnya.
+  //
+  // Sebelumnya langkah ini dipagari toleransi ketat dan begitu lewat, baris langsung
+  // dipaksa ke tipe default 3C-4 - artinya diameter yang dipakai menghitung adalah angka
+  // karangan yang tidak ada hubungannya dengan data user. Sekarang diameter SELALU diambil
+  // dari katalog: kalau di luar toleransi hasilnya tetap dipakai tetapi ditandai 'odApprox'
+  // berikut selisihnya, sehingga user melihat persis seberapa jauh penyesuaiannya.
   if (odHint && odHint > 0) {
     let best = ALL_ENTRIES[0];
     let bestDiff = Infinity;
@@ -158,10 +221,19 @@ export function matchCatalog(text: string, odHint?: number): CatalogMatch {
         best = e;
       }
     }
-    if (bestDiff <= Math.max(1.5, odHint * 0.15)) return { typeCode: best.id, quality: 'odFallback' };
+    const within = bestDiff <= Math.max(1.5, odHint * 0.15);
+    return {
+      typeCode: best.id,
+      quality: within ? 'odFallback' : 'odApprox',
+      fileOdMm: odHint,
+      odDeltaMm: bestDiff,
+    };
   }
 
-  return { typeCode: findEntry('3C-4')?.id ?? ALL_ENTRIES[0]?.id ?? '3C-4', quality: 'guess' };
+  // 4) Benar-benar tidak ada sinyal. Baris tetap masuk supaya tidak ada data yang hilang,
+  //    tetapi ditandai unresolved - user memilih tipenya di pratinjau, dan sampai itu
+  //    dilakukan tidak ada diameter yang boleh dianggap benar.
+  return { typeCode: findEntry('3C-4')?.id ?? ALL_ENTRIES[0]?.id ?? '3C-4', quality: 'unresolved' };
 }
 
 /** Semua OD katalog, dipakai untuk mengenali kolom OD dari isinya. */
@@ -207,12 +279,23 @@ function findHeaderBand(grid: Grid): HeaderBand {
   let best = 0;
   for (let i = 1; i < scores.length; i++) if (scores[i] > scores[best]) best = i;
 
-  // Baris tetangga ikut dianggap header selama masih punya beberapa label kata kunci.
+  // Baris tetangga ikut dianggap header selama masih punya beberapa label kata kunci DAN
+  // tidak berisi angka telanjang.
+  //
+  // Skor saja tidak cukup: kata seperti "panel", "kabel", "cable" dan "ckt" wajar muncul di
+  // dalam data ("CKT-1", "Feeder ke panel utility"), sehingga baris data pertama sering
+  // ikut tertarik menjadi header dan kabelnya hilang tanpa jejak. Angka telanjang adalah
+  // pembeda yang bersih: baris header berisi label, bukan 27.5 atau 150. Header dua baris
+  // ter-merge ("DEMAND LOAD (WATT)" di atas "R / S / T") juga tidak punya angka telanjang,
+  // jadi kasus itu tetap tergabung seperti sebelumnya.
+  const hasBareNumber = (row: string[]): boolean =>
+    row.some((cell) => /^\d+([.,]\d+)?$/.test(lower(cell)));
+
   let start = best;
   let end = best;
   const threshold = Math.max(4, scores[best] * 0.35);
-  while (start - 1 >= 0 && scores[start - 1] >= threshold) start--;
-  while (end + 1 < limit && scores[end + 1] >= threshold) end++;
+  while (start - 1 >= 0 && scores[start - 1] >= threshold && !hasBareNumber(grid[start - 1] ?? [])) start--;
+  while (end + 1 < limit && scores[end + 1] >= threshold && !hasBareNumber(grid[end + 1] ?? [])) end++;
 
   const width = grid.slice(start, end + 1).reduce((w, r) => Math.max(w, r.length), 0);
   const labels: string[] = [];
@@ -305,14 +388,29 @@ function detectOdByContent(grid: Grid, from: number, labels: string[]): number {
   return bestCol;
 }
 
+/** Jalankan strategi pencarian kolom berurutan, ambil yang pertama berhasil. */
+function firstOf(...strategies: (() => number)[]): number {
+  for (const strategy of strategies) {
+    const found = strategy();
+    if (found !== -1) return found;
+  }
+  return -1;
+}
+
 function mapColumns(grid: Grid, band: HeaderBand): ColMap {
   const labels = band.labels;
   const from = band.end + 1;
 
-  const type =
-    byHeader(labels, /\btype\b|\btipe\b|cable size|ukuran kabel|kabel|cable/, /breaker|panel|tray/) !== -1
-      ? byHeader(labels, /\btype\b|\btipe\b|cable size|ukuran kabel|kabel|cable/, /breaker|panel|tray/)
-      : detectTypeByContent(grid, from);
+  // Kolom yang benar-benar berjudul TYPE / TIPE harus menang atas yang sekadar mengandung
+  // kata "cable": pada template dengan CABLE DESCRIPTION di kiri dan TYPE di kanan, pola
+  // longgar akan berhenti di kolom deskripsi dan spesifikasi kabel yang sesungguhnya
+  // terlewat. Karena itu pola kuat dicoba lebih dulu, longgar hanya sebagai cadangan.
+  const EXCLUDE_TYPE = /breaker|panel|tray/;
+  const type = firstOf(
+    () => byHeader(labels, /\btype\b|\btipe\b|cable size|ukuran kabel/, EXCLUDE_TYPE),
+    () => byHeader(labels, /kabel|cable/, EXCLUDE_TYPE),
+    () => detectTypeByContent(grid, from),
+  );
 
   let od = byHeader(labels, /\bod\b|o\.d\.|diameter|dia\b|Ø/, /watt|ampere/);
   if (od === -1) od = detectOdByContent(grid, from, labels);
@@ -381,10 +479,17 @@ function parseGrid(grid: Grid, sheetName: string): ImportResult {
 
   const panelFromTitle = detectPanelTitle(grid, band.start);
   const stamp = Date.now().toString(36);
-  const runs: CableRun[] = [];
-  const warnings: string[] = [];
-  const quality: Record<MatchQuality, number> = { exact: 0, odFallback: 0, odMismatch: 0, guess: 0 };
+  const rows: ImportedRow[] = [];
+  const warnings: ImportWarning[] = [];
+  const quality: Record<MatchQuality, number> = {
+    exact: 0,
+    odFallback: 0,
+    odApprox: 0,
+    odMismatch: 0,
+    unresolved: 0,
+  };
   let seq = 0;
+  let skippedImplausible = 0;
 
   for (let r = band.end + 1; r < grid.length; r++) {
     const row = grid[r] ?? [];
@@ -400,53 +505,88 @@ function parseGrid(grid: Grid, sheetName: string): ImportResult {
 
     const typeText = cell(col.type);
     const odNum = parseNumber(cell(col.od));
-    // Kalau file punya kolom OD, baris data wajib punya angka OD - penyaring paling tegas
-    // terhadap baris rekap dan catatan.
-    if (col.od >= 0 && !(odNum && odNum > 0)) continue;
-    if (!typeText && odNum === undefined) continue;
+
+    // Sebuah baris "jelas sirkuit" kalau punya nomor sirkuit DAN deskripsi yang berbeda satu
+    // sama lain. Baris catatan di kaki tabel biasanya satu teks ter-merge, sehingga kedua
+    // kolom mengembalikan teks yang sama - syarat berbeda itulah yang menyaringnya.
+    const circuitText = cell(col.circuit);
+    const descText = cell(col.desc);
+    const hasIdentity = Boolean(circuitText && descText && circuitText !== descText);
+
+    // Tanpa tipe dan tanpa OD, baris hanya diterima kalau identitasnya jelas. Kalau tidak,
+    // kabel yang kolom TYPE dan OD-nya kebetulan kosong akan hilang tanpa jejak.
+    if (!typeText && odNum === undefined && !hasIdentity) continue;
     if (typeText.length > 80 && !odNum) continue;
 
-    const match = matchCatalog(typeText || cell(col.desc), odNum);
+    const sourceText = typeText || cell(col.desc);
+    const match = matchCatalog(sourceText, odNum);
+
+    // Kalau file punya kolom OD, angka OD adalah penyaring paling tegas terhadap baris
+    // rekap dan catatan - tapi tidak boleh mutlak. Workbook yang ditulis program lain
+    // (termasuk hasil export aplikasi ini) menyimpan kolom OD sebagai formula tanpa nilai
+    // ter-cache, sehingga selnya terbaca kosong dan seluruh baris kabel ikut terbuang.
+    // Baris tanpa OD karena itu tetap diterima kalau teks TYPE-nya sendiri cocok persis
+    // dengan katalog: diameternya diambil dari katalog, persis seperti perilaku yang
+    // diinginkan saat OD tidak terbaca.
+    // Baris tanpa OD yang tipenya tidak cocok tetap masuk selama identitasnya jelas -
+    // ditandai unresolved supaya user memilih tipenya, dan diameternya ikut katalog.
+    if (col.od >= 0 && !(odNum && odNum > 0) && match.quality !== 'exact' && !hasIdentity) continue;
+
+    // Jumlah run yang mustahil menandakan kolomnya bukan jumlah run: tabel konfigurasi
+    // lebar tray (100, 150, 200 ... 1000) terbaca persis seperti ini dan menghasilkan
+    // baris-baris kabel palsu. Lebih baik dibuang dan dilaporkan daripada ikut dihitung.
+    const runCount = Math.max(1, Math.round(parseNumber(cell(col.runs)) ?? 1));
+    if (runCount > MAX_PLAUSIBLE_RUNS) {
+      skippedImplausible++;
+      continue;
+    }
+
     quality[match.quality]++;
 
     const watt = col.loadCols.reduce((sum, i) => sum + (parseNumber(cell(i)) ?? 0), 0);
     const loadKw = watt > 0 ? (col.loadInWatt ? watt / 1000 : watt) : undefined;
 
     seq++;
-    const circuit = cell(col.circuit) || (cell(col.no) ? `CKT-${cell(col.no)}` : `IMP-${seq}`);
-    runs.push({
-      id: `IMP-${stamp}-${seq}`,
-      panel: cell(col.panel) || panelFromTitle || 'IMPORT',
-      circuit,
-      category: normCategory(cell(col.category)),
-      loadKw,
-      description: cell(col.desc) || typeText || '(imported)',
-      typeCode: match.typeCode,
-      runs: Math.max(1, Math.round(parseNumber(cell(col.runs)) ?? 1)),
+    const circuit = circuitText || (cell(col.no) ? `CKT-${cell(col.no)}` : `IMP-${seq}`);
+    rows.push({
+      run: {
+        id: `IMP-${stamp}-${seq}`,
+        panel: cell(col.panel) || panelFromTitle || 'IMPORT',
+        circuit,
+        category: normCategory(cell(col.category)),
+        loadKw,
+        description: descText || typeText || '(imported)',
+        typeCode: match.typeCode,
+        runs: runCount,
+      },
+      quality: match.quality,
+      fileOdMm: match.fileOdMm,
+      odDeltaMm: match.odDeltaMm,
+      sourceText,
     });
   }
 
-  if (runs.length === 0) throw new Error('Tidak ada baris kabel valid ditemukan di file ini.');
+  if (rows.length === 0) {
+    throw new Error(
+      skippedImplausible > 0
+        ? `Tidak ada baris kabel valid: ${skippedImplausible} baris dibuang karena jumlah run-nya di atas ${MAX_PLAUSIBLE_RUNS}, jadi tabel yang terbaca (sheet "${sheetName}", header baris ${band.start + 1}) kemungkinan tabel konfigurasi, bukan daftar kabel.`
+        : `Tidak ada baris kabel valid ditemukan di sheet "${sheetName}" (header baris ${band.start + 1}).`,
+    );
+  }
 
-  if (quality.odMismatch > 0) {
-    warnings.push(
-      `${quality.odMismatch} baris: OD di file berbeda dari OD katalog untuk tipe yang tertulis. Perhitungan memakai OD katalog - periksa kolom OD.`,
-    );
+  if (skippedImplausible > 0) {
+    warnings.push({ code: 'skippedImplausible', count: skippedImplausible, max: MAX_PLAUSIBLE_RUNS });
   }
-  if (quality.odFallback > 0) {
-    warnings.push(
-      `${quality.odFallback} baris: tipe kabel tidak terbaca dari teks, dicocokkan lewat OD terdekat.`,
-    );
-  }
-  if (quality.guess > 0) {
-    warnings.push(
-      `${quality.guess} baris: tipe maupun OD tidak dikenali, dipakai tipe default 3C-4. Periksa sebelum menghitung.`,
-    );
-  }
+  if (quality.odMismatch > 0) warnings.push({ code: 'odMismatch', count: quality.odMismatch });
+  if (quality.odFallback > 0) warnings.push({ code: 'odFallback', count: quality.odFallback });
+  if (quality.odApprox > 0) warnings.push({ code: 'odApprox', count: quality.odApprox });
+  if (quality.unresolved > 0) warnings.push({ code: 'unresolved', count: quality.unresolved });
 
   return {
-    runs,
+    rows,
+    runs: rows.map((r) => r.run),
     warnings,
+    skippedImplausible,
     detected: {
       sheet: sheetName,
       headerRow: band.start + 1,

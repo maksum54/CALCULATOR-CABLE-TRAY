@@ -1,6 +1,13 @@
-import { useRef, useState } from 'react';
-import { importScheduleFromCsv, importScheduleFromExcel, type ImportResult } from '../../import/scheduleImport';
-import { findEntry } from '../../core/catalog';
+import { useMemo, useRef, useState } from 'react';
+import {
+  importScheduleFromCsv,
+  importScheduleFromExcel,
+  NEEDS_REVIEW,
+  type ImportResult,
+  type ImportWarning,
+  type MatchQuality,
+} from '../../import/scheduleImport';
+import { ALL_ENTRIES, findEntry } from '../../core/catalog';
 import { useAppStore } from '../../store/useAppStore';
 import { Badge, Button } from '../ui';
 import { useT } from '../ui/useT';
@@ -18,6 +25,9 @@ export function ImportScheduleButton() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<(ImportResult & { fileName: string }) | null>(null);
+  /** Tipe yang dipilih ulang user di pratinjau, per id baris. */
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [onlyReview, setOnlyReview] = useState(false);
 
   const handleFile = async (file: File) => {
     setBusy(true);
@@ -29,6 +39,9 @@ export function ImportScheduleButton() {
         ? await importScheduleFromCsv(file)
         : await importScheduleFromExcel(file);
       setResult({ ...parsed, fileName: file.name });
+      setOverrides({});
+      // Kalau ada yang butuh perhatian, langsung saring supaya user tidak perlu mencarinya.
+      setOnlyReview(parsed.rows.some((r) => NEEDS_REVIEW.includes(r.quality)));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -37,11 +50,36 @@ export function ImportScheduleButton() {
     }
   };
 
+  /** Kualitas efektif: baris yang tipenya sudah dikoreksi user tidak lagi perlu diperiksa. */
+  const effectiveQuality = (id: string, q: MatchQuality): MatchQuality =>
+    overrides[id] ? 'exact' : q;
+
+  const reviewCount = useMemo(
+    () =>
+      result?.rows.filter((r) => NEEDS_REVIEW.includes(effectiveQuality(r.run.id, r.quality)))
+        .length ?? 0,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [result, overrides],
+  );
+
+  const visibleRows = useMemo(() => {
+    const all = result?.rows ?? [];
+    return onlyReview
+      ? all.filter((r) => NEEDS_REVIEW.includes(effectiveQuality(r.run.id, r.quality)))
+      : all;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, onlyReview, overrides]);
+
   const apply = (mode: 'replace' | 'append') => {
     if (!result) return;
-    if (mode === 'replace') replaceSchedule(result.runs);
-    else result.runs.forEach(addRun);
+    // Tipe yang dikoreksi user menang atas tebakan parser.
+    const runs = result.rows.map((r) =>
+      overrides[r.run.id] ? { ...r.run, typeCode: overrides[r.run.id] } : r.run,
+    );
+    if (mode === 'replace') replaceSchedule(runs);
+    else runs.forEach(addRun);
     setResult(null);
+    setOverrides({});
   };
 
   return (
@@ -62,11 +100,10 @@ export function ImportScheduleButton() {
 
       {error && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.45)' }}
+          className="modal-scrim fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={() => setError(null)}
         >
-          <div className="glass-strong max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-surface max-w-md p-5" onClick={(e) => e.stopPropagation()}>
             <h4 className="mb-2 text-[14px] font-semibold" style={{ color: 'var(--danger)' }}>
               {t('importFailed')}
             </h4>
@@ -80,10 +117,9 @@ export function ImportScheduleButton() {
 
       {result && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.45)' }}
+          className="modal-scrim fixed inset-0 z-50 flex items-center justify-center p-4"
         >
-          <div className="glass-strong flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden p-0">
+          <div className="modal-surface flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden p-0">
             <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-2">
               <div>
                 <h4 className="text-[14px] font-semibold">{t('importPreviewTitle')}</h4>
@@ -110,18 +146,32 @@ export function ImportScheduleButton() {
             </div>
 
             {result.warnings.length > 0 && (
-              <div className="mx-5 mb-2 rounded-lg px-3 py-2 text-[11.5px]" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}>
-                {result.warnings.map((w, i) => (
-                  <p key={i}>{w}</p>
+              <div className="mx-5 mb-2 space-y-1 rounded-lg px-3 py-2 text-[11.5px]" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}>
+                {result.warnings.map((w) => (
+                  <p key={w.code}>{warningText(t, w)}</p>
                 ))}
               </div>
             )}
+
+            {/* Sisa baris yang belum beres selalu terlihat, dan bisa disaring supaya user
+                tidak perlu menelusuri ratusan baris untuk menemukannya. */}
+            <div className="mx-5 mb-2 flex flex-wrap items-center justify-between gap-2 text-[11.5px]">
+              <span style={{ color: reviewCount > 0 ? 'var(--warn)' : 'var(--ok)' }}>
+                {reviewCount > 0 ? t('importNeedsReview', { n: reviewCount }) : t('importAllResolved')}
+              </span>
+              {result.rows.some((r) => NEEDS_REVIEW.includes(r.quality)) && (
+                <label className="flex cursor-pointer items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
+                  <input type="checkbox" checked={onlyReview} onChange={(e) => setOnlyReview(e.target.checked)} />
+                  {t('importOnlyReview')}
+                </label>
+              )}
+            </div>
 
             <div className="scroll-thin min-h-0 flex-1 overflow-auto px-5">
               <table className="w-full text-[11.5px]">
                 <thead className="sticky top-0" style={{ background: 'var(--glass-bg-strong)' }}>
                   <tr>
-                    {[t('panel'), t('circuit'), t('category'), t('cableDescription'), t('type'), t('qtyRuns')].map((h) => (
+                    {[t('panel'), t('circuit'), t('cableDescription'), t('type'), t('od'), t('qtyRuns')].map((h) => (
                       <th key={h} className="border-b px-2 py-1.5 text-left text-[10.5px] font-semibold uppercase" style={{ borderColor: 'var(--glass-border)', color: 'var(--text-muted)' }}>
                         {h}
                       </th>
@@ -129,26 +179,53 @@ export function ImportScheduleButton() {
                   </tr>
                 </thead>
                 <tbody>
-                  {result.runs.slice(0, 100).map((r) => {
-                    const e = findEntry(r.typeCode);
+                  {visibleRows.slice(0, 100).map((row) => {
+                    const id = row.run.id;
+                    const typeCode = overrides[id] ?? row.run.typeCode;
+                    const entry = findEntry(typeCode);
+                    const q = effectiveQuality(id, row.quality);
+                    const needs = NEEDS_REVIEW.includes(q);
                     return (
-                      <tr key={r.id}>
-                        <td className="border-b px-2 py-1" style={{ borderColor: 'var(--glass-border-soft)' }}>{r.panel}</td>
-                        <td className="border-b px-2 py-1" style={{ borderColor: 'var(--glass-border-soft)' }}>{r.circuit}</td>
-                        <td className="border-b px-2 py-1" style={{ borderColor: 'var(--glass-border-soft)' }}>{r.category}</td>
-                        <td className="border-b px-2 py-1" style={{ borderColor: 'var(--glass-border-soft)' }}>{r.description}</td>
+                      <tr key={id} style={{ background: needs ? 'var(--warn-soft)' : undefined }}>
+                        <td className="border-b px-2 py-1" style={{ borderColor: 'var(--glass-border-soft)' }}>{row.run.panel}</td>
+                        <td className="border-b px-2 py-1" style={{ borderColor: 'var(--glass-border-soft)' }}>{row.run.circuit}</td>
+                        <td className="border-b px-2 py-1" style={{ borderColor: 'var(--glass-border-soft)' }}>{row.run.description}</td>
                         <td className="border-b px-2 py-1" style={{ borderColor: 'var(--glass-border-soft)' }}>
-                          {r.typeCode} ({e ? `${e.cores}C x ${e.sizeMm2}, OD ${e.odMm}mm` : '?'})
+                          {/* Tipe bisa dikoreksi di sini; diameternya selalu ikut katalog. */}
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              className="field min-w-[190px]"
+                              value={typeCode}
+                              onChange={(e) => setOverrides((o) => ({ ...o, [id]: e.target.value }))}
+                            >
+                              {ALL_ENTRIES.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.id} - {c.family} {c.cores}C x {c.sizeMm2} ({c.odMm} mm)
+                                </option>
+                              ))}
+                            </select>
+                            <Badge tone={qualityTone(q)}>{t(QUALITY_KEY[q])}</Badge>
+                          </div>
                         </td>
-                        <td className="tabular border-b px-2 py-1" style={{ borderColor: 'var(--glass-border-soft)' }}>{r.runs}</td>
+                        <td className="tabular border-b px-2 py-1 whitespace-nowrap" style={{ borderColor: 'var(--glass-border-soft)' }}>
+                          {entry ? `${entry.odMm} mm` : '?'}
+                          {/* OD asli dari file ditampilkan hanya kalau berbeda, supaya jelas
+                              angka mana yang dipakai menghitung dan seberapa jauh gesernya. */}
+                          {row.fileOdMm !== undefined && entry && Math.abs(row.fileOdMm - entry.odMm) > 0.05 && (
+                            <span className="ml-1" style={{ color: 'var(--warn)' }}>
+                              ({t('importFileOd')} {row.fileOdMm})
+                            </span>
+                          )}
+                        </td>
+                        <td className="tabular border-b px-2 py-1" style={{ borderColor: 'var(--glass-border-soft)' }}>{row.run.runs}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-              {result.runs.length > 100 && (
+              {visibleRows.length > 100 && (
                 <p className="py-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                  +{result.runs.length - 100} {t('importMoreRows')}
+                  +{visibleRows.length - 100} {t('importMoreRows')}
                 </p>
               )}
             </div>
@@ -163,4 +240,35 @@ export function ImportScheduleButton() {
       )}
     </>
   );
+}
+
+const QUALITY_KEY = {
+  exact: 'importQualityExact',
+  odFallback: 'importQualityOdFallback',
+  odApprox: 'importQualityOdApprox',
+  odMismatch: 'importQualityOdMismatch',
+  unresolved: 'importQualityUnresolved',
+} as const;
+
+function qualityTone(q: MatchQuality): 'ok' | 'accent' | 'warn' | 'danger' {
+  if (q === 'exact') return 'ok';
+  if (q === 'odFallback') return 'accent';
+  if (q === 'unresolved') return 'danger';
+  return 'warn';
+}
+
+/** Peringatan parser datang sebagai kode + jumlah, teksnya dirakit di sini. */
+function warningText(t: ReturnType<typeof useT>, w: ImportWarning): string {
+  switch (w.code) {
+    case 'skippedImplausible':
+      return t('importWarnSkipped', { n: w.count, max: w.max ?? 0 });
+    case 'odMismatch':
+      return t('importWarnOdMismatch', { n: w.count });
+    case 'odFallback':
+      return t('importWarnOdFallback', { n: w.count });
+    case 'odApprox':
+      return t('importWarnOdApprox', { n: w.count });
+    case 'unresolved':
+      return t('importWarnUnresolved', { n: w.count });
+  }
 }

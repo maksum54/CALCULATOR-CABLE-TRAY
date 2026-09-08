@@ -225,6 +225,41 @@ export const DICT = {
   importDetectedOd: { id: 'OD', en: 'OD' },
   importDetectedHeader: { id: 'baris header', en: 'header row' },
   close: { id: 'Tutup', en: 'Close' },
+
+  // Import - peringatan parser (kode + jumlah diterjemahkan di sini, bukan di parser)
+  importWarnSkipped: {
+    id: '{n} baris dilewati: jumlah run di atas {max} - kemungkinan tabel konfigurasi / lebar tray, bukan daftar kabel. Periksa kolom yang terbaca di atas.',
+    en: '{n} row(s) skipped: run count above {max} - most likely a configuration / tray-width table, not a cable list. Check the detected columns above.',
+  },
+  importWarnOdMismatch: {
+    id: '{n} baris: OD di file berbeda dari OD katalog untuk tipe yang tertulis. Perhitungan memakai OD katalog.',
+    en: '{n} row(s): the OD in the file disagrees with the catalogue OD for the type written there. The calculation uses the catalogue OD.',
+  },
+  importWarnOdFallback: {
+    id: '{n} baris: tipe tidak terbaca dari teks, diameter diambil dari OD katalog terdekat.',
+    en: '{n} row(s): the type could not be read from the text, so the diameter was taken from the nearest catalogue OD.',
+  },
+  importWarnOdApprox: {
+    id: '{n} baris: tidak ada OD katalog yang persis sama, dipakai diameter katalog terdekat. Periksa tipenya di kolom TYPE.',
+    en: '{n} row(s): no catalogue OD matches exactly, so the nearest catalogue diameter was used. Check the type in the TYPE column.',
+  },
+  importWarnUnresolved: {
+    id: '{n} baris: tipe maupun OD tidak terbaca. Pilih tipe kabelnya di kolom TYPE - diameternya akan mengikuti katalog.',
+    en: '{n} row(s): neither type nor OD could be read. Pick the cable type in the TYPE column - the diameter follows the catalogue.',
+  },
+
+  // Import - kualitas pencocokan per baris
+  importQualityExact: { id: 'Cocok', en: 'Matched' },
+  importQualityOdFallback: { id: 'Dari OD', en: 'From OD' },
+  importQualityOdApprox: { id: 'OD terdekat', en: 'Nearest OD' },
+  importQualityOdMismatch: { id: 'OD beda', en: 'OD differs' },
+  importQualityUnresolved: { id: 'Pilih tipe', en: 'Pick type' },
+
+  importNeedsReview: { id: '{n} baris perlu diperiksa', en: '{n} row(s) need review' },
+  importOnlyReview: { id: 'Hanya yang perlu diperiksa', en: 'Only rows needing review' },
+  importFileOd: { id: 'OD di file', en: 'OD in file' },
+  importCatalogOd: { id: 'OD katalog', en: 'Catalogue OD' },
+  importAllResolved: { id: 'Semua baris cocok dengan katalog.', en: 'Every row matched the catalogue.' },
   cancel: { id: 'Batal', en: 'Cancel' },
 } as const;
 

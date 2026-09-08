@@ -35,6 +35,10 @@
   --danger: #dc2626;
   --danger-soft: rgba(220, 38, 38, 0.14);
 
+  /* Permukaan dialog: harus cukup pekat supaya isi di belakangnya tidak terbaca menembus. */
+  --modal-surface: rgba(255, 255, 255, 0.94);
+  --modal-scrim: rgba(15, 23, 42, 0.42);
+
   --tray-metal: #94a3b8;
   --tray-metal-dark: #64748b;
   --grid-line: rgba(15, 23, 42, 0.07);
@@ -69,6 +73,9 @@
   --warn-soft: rgba(251, 191, 36, 0.16);
   --danger: #f87171;
   --danger-soft: rgba(248, 113, 113, 0.16);
+
+  --modal-surface: rgba(17, 23, 37, 0.95);
+  --modal-scrim: rgba(2, 5, 12, 0.6);
 
   --tray-metal: #7c8ba1;
   --tray-metal-dark: #4a5768;
@@ -240,6 +247,23 @@ body {
   :root[data-theme='dark'] select.field option {
     background: #16233c;
     color: #eef2f9;
+  }
+
+  /* Latar gelap + blur di belakang dialog: yang di belakang jadi kabur, bukan sekadar redup. */
+  .modal-scrim {
+    background: var(--modal-scrim);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+
+  /* Panel dialog. Tetap bertekstur kaca, tetapi latarnya pekat supaya terbaca. */
+  .modal-surface {
+    background: var(--modal-surface);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.6), 0 1px 0 0 var(--glass-highlight) inset;
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-radius: 1rem;
   }
 
   .scroll-thin {
