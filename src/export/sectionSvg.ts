@@ -7,6 +7,7 @@
 import type { TrayArrangement } from '../core/arranger';
 import type { TrayType } from '../core/types';
 import { heatColor, typeColor } from '../core/colors';
+import { LABEL_FONT_MM, LABEL_PITCH_MM, layoutLabelAnchors } from '../core/labelLayout';
 
 export interface SectionSvgOptions {
   tray: TrayArrangement;
@@ -80,16 +81,26 @@ export function buildSectionSvg(o: SectionSvgOptions): string {
     push(`<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${(c.r * 0.42).toFixed(2)}" fill="rgba(0,0,0,0.16)"/>`);
   }
 
-  // Cable tags in a band above the tray, with leader lines
+  // Cable tags in a band above the tray, with leader lines. The anchors are spread so that
+  // cables stacked in different layers - identical x - do not print on top of each other.
   if (o.showLabels) {
-    for (const c of tray.cables) {
+    const anchors = layoutLabelAnchors(tray.cables.map((c) => c.x), {
+      pitchMm: LABEL_PITCH_MM,
+      minX: 0,
+      maxX: W,
+    });
+    tray.cables.forEach((c, i) => {
       const top = c.y + c.r;
-      push(`<line x1="${c.x.toFixed(2)}" y1="${(top + 1).toFixed(2)}" x2="${c.x.toFixed(2)}" y2="${H + 7}" stroke="${typeColor(c.typeCode)}" stroke-width="0.4" opacity="0.6"/>`);
+      const ax = anchors[i];
+      const kink = top + (H + 6 - top) * 0.45;
+      push(
+        `<polyline points="${c.x.toFixed(2)},${(top + 1).toFixed(2)} ${c.x.toFixed(2)},${kink.toFixed(2)} ${ax.toFixed(2)},${(H + 7).toFixed(2)}" fill="none" stroke="${typeColor(c.typeCode)}" stroke-width="0.4" opacity="0.6"/>`,
+      );
       const label = c.label.length > 26 ? `${c.label.slice(0, 25)}...` : c.label;
       push(
-        `<g transform="translate(${c.x.toFixed(2)}, ${H + 8}) scale(1,-1) rotate(-90)"><text x="0" y="0" font-size="5.2" font-family="Helvetica, Arial, sans-serif" font-weight="600" fill="${ink}" dominant-baseline="central">${esc(label)}</text></g>`,
+        `<g transform="translate(${ax.toFixed(2)}, ${H + 8}) scale(1,-1) rotate(-90)"><text x="0" y="0" font-size="${LABEL_FONT_MM}" font-family="Helvetica, Arial, sans-serif" font-weight="600" fill="${ink}" dominant-baseline="central">${esc(label)}</text></g>`,
       );
-    }
+    });
   }
 
   // Dimensions

@@ -11,11 +11,18 @@ export type Theme = 'light' | 'dark';
 
 export interface ProjectInfo {
   name: string;
+  /** Nama perusahaan pada kop laporan. Kosong = baris kop dilewati. */
+  company: string;
   drawingNo: string;
   preparedBy: string;
   checkedBy: string;
   revision: string;
   date: string;
+  /**
+   * Logo perusahaan sebagai data URL PNG, sudah diperkecil saat di-upload supaya aman
+   * disimpan di localStorage. null = tanpa logo.
+   */
+  logo: string | null;
 }
 
 export interface LayoutOptions {
@@ -76,11 +83,13 @@ export const useAppStore = create<AppState>()(
       bending: { ...DEFAULT_BENDING_OPTIONS },
       project: {
         name: 'Raw Material Warehouse',
+        company: '',
         drawingNo: 'MEELV-CT-001',
         preparedBy: '',
         checkedBy: '',
         revision: 'R0',
         date: today(),
+        logo: null,
       },
       panelFilter: 'ALL',
       selectedTrayIndex: 0,
@@ -110,6 +119,12 @@ export const useAppStore = create<AppState>()(
       name: 'cable-tray-calculator',
       // scenePng is a multi-megabyte data URL; never write it to localStorage.
       partialize: ({ scenePng: _scenePng, ...rest }) => rest,
+      // A stored project object replaces the default wholesale, so a field added after the
+      // user's last visit would come back undefined. Merge it field by field instead.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<AppState>;
+        return { ...current, ...p, project: { ...current.project, ...(p.project ?? {}) } };
+      },
     },
   ),
 );

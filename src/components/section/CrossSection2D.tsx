@@ -9,6 +9,7 @@ import type { PlacedCable, TrayType } from '../../core/types';
 import type { TrayArrangement } from '../../core/arranger';
 import { heatColor, shade, typeColor } from '../../core/colors';
 import { findEntry } from '../../core/catalog';
+import { LABEL_FONT_MM, LABEL_PITCH_MM, layoutLabelAnchors } from '../../core/labelLayout';
 
 export interface CrossSectionProps {
   tray: TrayArrangement;
@@ -93,6 +94,16 @@ export function CrossSection2D(props: CrossSectionProps) {
     // y is flipped by the outer <g transform="scale(1,-1)">, so the box is built in tray space.
     return `${cx - w / 2} ${cy - h / 2} ${w} ${h}`;
   }, [viewW, viewH, zoom, pan, trayWidthMm, trayHeightMm, margin, marginRight, marginTop]);
+
+  const labelAnchors = useMemo(
+    () =>
+      layoutLabelAnchors(tray.cables.map((c) => c.x), {
+        pitchMm: LABEL_PITCH_MM,
+        minX: 0,
+        maxX: trayWidthMm,
+      }),
+    [tray.cables, trayWidthMm],
+  );
 
   const gridStep = trayWidthMm > 600 ? 100 : 50;
   const gridLines: number[] = [];
@@ -204,20 +215,30 @@ export function CrossSection2D(props: CrossSectionProps) {
             );
           })}
 
-          {/* Cable tags in a band above the tray, with leader lines - drawing-office style */}
+          {/* Cable tags in a band above the tray, with leader lines - drawing-office style.
+              Anchors come from the shared layout so a stack of cables at one x gets a fan of
+              readable tags instead of one tag printed over another. */}
           {showLabels && tray.cables.length <= LABEL_LIMIT && (
             <g>
-              {tray.cables.map((c) => {
+              {tray.cables.map((c, i) => {
                 const top = c.y + c.r;
                 const bandBase = trayHeightMm + 8;
+                const ax = labelAnchors[i];
+                const kink = top + (bandBase - 2 - top) * 0.45;
                 return (
                   <g key={`lb${c.runId}#${c.runIndex}`}>
-                    <line x1={c.x} y1={top + 1} x2={c.x} y2={bandBase - 1} stroke={typeColor(c.typeCode)} strokeWidth="0.4" opacity="0.55" />
-                    <g transform={`translate(${c.x}, ${bandBase}) scale(1,-1) rotate(-90)`}>
+                    <polyline
+                      points={`${c.x},${top + 1} ${c.x},${kink} ${ax},${bandBase - 1}`}
+                      fill="none"
+                      stroke={typeColor(c.typeCode)}
+                      strokeWidth="0.4"
+                      opacity="0.55"
+                    />
+                    <g transform={`translate(${ax}, ${bandBase}) scale(1,-1) rotate(-90)`}>
                       <text
                         textAnchor="start"
                         dominantBaseline="central"
-                        fontSize="5.2"
+                        fontSize={LABEL_FONT_MM}
                         fill="var(--text-primary)"
                         fontWeight="600"
                       >

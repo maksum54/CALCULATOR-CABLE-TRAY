@@ -20,6 +20,7 @@ npm run build
 | Area | Detail |
 |---|---|
 | Input | Sample panel schedule on first run, manual entry, or import from any Excel / CSV schedule - the TYPE and OD columns are located by header name or, failing that, by content |
+| Title block | Company name and logo, project name, drawing number, revision and date - printed on the PDF title block and footer, the Excel title rows and the section drawing caption |
 | Sizing | Method 1 (sum of cable diameters) and Method 2 (fill ratio by area), governing width, tray runs, fill verdict, alternative configurations, per-panel breakdown |
 | Fill standards | `practice40` (the reference workbook's 40 % rule, default), NEC 392.22(A), IEC 60364-5-52 |
 | Arrangement | Flat touching, flat spaced 1 × d, trefoil; multi-layer packing; smart auto-arranger; FRC divider segregation |
@@ -40,6 +41,7 @@ src/core/        calculation engine - plain TypeScript, no React, unit tested
   derating.ts    grouping + ambient correction and the thermal ranking
   support.ts     weight, span, deflection, hanger capacity
   bending.ts     minimum radius and pulling tension
+  labelLayout.ts tag anchor spreading - shared by the 2D view, the SVG/PDF section and DXF
 src/import/      Excel / CSV schedule reader - header band detection + catalogue matching
 src/data/        sampleSchedule.ts   (what "Load sample data" loads: DB-RMW-L0-LP, 81 circuits)
                  referenceSchedule.ts (the workbook fixture the engine is verified against)
@@ -51,6 +53,11 @@ src/export/      xlsx, pdf, dxf, BIM json, standalone svg
 The rule the codebase follows: **one calculation, many views.** `useCalculations` produces every
 derived number once, and the tables, the cross-section, the 3D scene and all five exports read
 from it. A drawing can never disagree with the numbers next to it.
+
+Company name and logo live in the project block on the Export tab. The logo is downscaled to
+320 px on upload before it reaches the store, so persisting it in localStorage stays cheap
+(~4 kB), and it is drawn on the PDF title block over a white plate - a dark transparent logo
+would otherwise vanish into the navy band.
 
 The three heavy dependencies are loaded on demand, not at start-up: Three.js when the 3D tab is
 first opened, jsPDF/ExcelJS on the export button that needs them, and ExcelJS again on the schedule

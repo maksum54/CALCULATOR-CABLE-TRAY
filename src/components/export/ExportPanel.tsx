@@ -7,6 +7,7 @@ import { useCalculations } from '../../store/useCalculations';
 // no dependencies of its own and stays static - the SVG is also what feeds the PDF snapshot.
 import { buildSectionSvg, capture3D, svgToPng } from '../../export/sectionSvg';
 import { Badge, Button, GlassCard, SectionTitle, TextField } from '../ui';
+import { LogoField } from './LogoField';
 import { useT } from '../ui/useT';
 import type { DictKey } from '../../i18n';
 
@@ -46,7 +47,7 @@ export function ExportPanel() {
     return m;
   }, [calc.derating]);
 
-  const sectionTitle = `${project.name} - ${t('sectionTitle')}`;
+  const sectionTitle = [project.company, `${project.name} - ${t('sectionTitle')}`].filter(Boolean).join(' | ');
   const sectionSubtitle = `${project.drawingNo} ${project.revision} | tray ${(tray?.trayIndex ?? 0) + 1}/${calc.sizing.trayRunsRequired} | ${params.selectedTrayWidthMm} x ${params.trayHeightMm} mm | ${tray?.cables.length ?? 0} cables | fill ${(calc.sizing.actualFillRatio * 100).toFixed(2)} %`;
 
   const run = async (job: Job, fn: () => Promise<void> | void) => {
@@ -141,6 +142,8 @@ export function ExportPanel() {
       <GlassCard>
         <SectionTitle>{t('projectInfo')}</SectionTitle>
         <div className="px-4 pb-4">
+          <TextField label={t('companyName')} value={project.company} onChange={(v) => setProject('company', v)} placeholder="PT ..." />
+          <LogoField />
           <TextField label={t('projectName')} value={project.name} onChange={(v) => setProject('name', v)} />
           <TextField label={t('drawingNo')} value={project.drawingNo} onChange={(v) => setProject('drawingNo', v)} />
           <TextField label={t('revision')} value={project.revision} onChange={(v) => setProject('revision', v)} />
