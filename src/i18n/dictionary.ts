@@ -113,7 +113,12 @@ export const DICT = {
 
   // Section view
   sectionTitle: { id: 'Penampang Melintang Tray', en: 'Tray Cross-Section' },
-  trayNo: { id: 'Tray ke-', en: 'Tray no.' },
+  trayNo: { id: 'Tray', en: 'Tray' },
+  legendTitle: { id: 'Legenda Tipe Kabel', en: 'Cable Type Legend' },
+  labelsHidden: {
+    id: 'Label kabel disembunyikan otomatis karena {n} kabel terlalu padat - zoom lalu arahkan kursor ke kabel untuk melihat detailnya.',
+    en: 'Cable labels are hidden automatically because {n} cables are too dense - zoom in and hover a cable to read its detail.',
+  },
   showLabels: { id: 'Tampilkan label kabel', en: 'Show cable labels' },
   showDimensions: { id: 'Tampilkan dimensi', en: 'Show dimensions' },
   showHeatmap: { id: 'Tampilkan heatmap', en: 'Show heat map' },

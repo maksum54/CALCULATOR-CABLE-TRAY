@@ -1,6 +1,10 @@
 import type { CatalogEntry } from '../types';
+import { seedColors } from '../colors';
 import { KMI_CATALOG } from './kmi';
 import { PROJECT_CATALOG } from './project';
+
+// Give the project's own cable types the clearest, best separated colours.
+seedColors(PROJECT_CATALOG.map((e) => e.id));
 
 export { KMI_CATALOG, PROJECT_CATALOG };
 

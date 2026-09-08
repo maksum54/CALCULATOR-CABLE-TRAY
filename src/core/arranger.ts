@@ -154,6 +154,32 @@ function edgeWeighted(units: Unit[]): Unit[] {
   return [...left, ...right.reverse()];
 }
 
+/**
+ * Pack units into layers of `capacityMm`, heaviest first so the bottom layer carries the
+ * largest cables, then re-order each layer so its biggest cables sit against the tray sides.
+ */
+function packIntoLayers(units: Unit[], capacityMm: number, autoArrange: boolean): Unit[][] {
+  const ordered = autoArrange
+    ? [...units].sort((a, b) => b.maxOd - a.maxOd || b.weight - a.weight)
+    : units;
+
+  const layers: Unit[][] = [];
+  let current: Unit[] = [];
+  let used = 0;
+  for (const unit of ordered) {
+    if (current.length > 0 && used + unit.widthMm > capacityMm) {
+      layers.push(current);
+      current = [];
+      used = 0;
+    }
+    current.push(unit);
+    used += unit.widthMm;
+  }
+  if (current.length > 0) layers.push(current);
+
+  return autoArrange ? layers.map(edgeWeighted) : layers;
+}
+
 export interface TrayArrangement extends ArrangementResult {
   trayIndex: number;
   /** x position of the FRC divider, when one is placed (mm). */
@@ -173,35 +199,52 @@ export function arrangeCables(runs: CableRun[], opts: ArrangeOptions): TrayArran
     frcUnits = units.filter((u) => u.isFrc);
     units = units.filter((u) => !u.isFrc);
   }
-  if (opts.autoArrange) units = edgeWeighted(units);
 
-  const usableWidth = Math.max(opts.trayWidthMm - 2 * opts.edgeClearanceMm, 0);
+  const usableWidth = Math.max(opts.trayWidthMm - 2 * opts.edgeClearanceMm, 1);
+  // Reserve the divider gap out of the layer capacity so FRC cables never push past the rail.
+  const frcReserve = frcUnits.length > 0 ? opts.dividerGapMm : 0;
+
+  // Spread the load evenly over the parallel trays instead of cramming the first one full.
+  const totalWidth = units.reduce((s, u) => s + u.widthMm, 0) + frcUnits.reduce((s, u) => s + u.widthMm, 0);
+  const budgetPerTray = opts.trayRuns > 0 ? totalWidth / opts.trayRuns : totalWidth;
+
+  const layers = packIntoLayers(units, usableWidth - frcReserve, opts.autoArrange);
+  const frcLayers = packIntoLayers(frcUnits, usableWidth, opts.autoArrange);
+
+  // Flatten back to a placement queue, keeping FRC units together at the end.
+  const queue: { unit: Unit; layerBreak: boolean }[] = [];
+  layers.forEach((layer, li) => layer.forEach((unit, ui) => queue.push({ unit, layerBreak: ui === 0 && li > 0 })));
+  const frcStartIndex = queue.length;
+  frcLayers.forEach((layer, li) => layer.forEach((unit, ui) => queue.push({ unit, layerBreak: ui === 0 && li > 0 })));
+
   const trays: TrayArrangement[] = [];
-  const queue = [...units, ...frcUnits];
-  const frcStartIndex = units.length;
-
   let placedCount = 0;
-  for (let trayIndex = 0; trayIndex < opts.trayRuns; trayIndex += 1) {
+
+  for (let trayIndex = 0; trayIndex < Math.max(1, opts.trayRuns); trayIndex += 1) {
     const cables: PlacedCable[] = [];
+    const lastTray = trayIndex === Math.max(1, opts.trayRuns) - 1;
     let cursorX = opts.edgeClearanceMm;
     let baseY = 0;
     let layer = 1;
     let layerHeight = 0;
     let occupiedWidth = 0;
+    let consumedWidth = 0;
     let dividerXMm: number | undefined;
     let groupCounter = 0;
 
     while (placedCount < queue.length) {
-      const unit = queue[placedCount];
+      const { unit, layerBreak } = queue[placedCount];
 
-      // Insert the divider gap the first time an FRC unit is placed in this tray.
+      // Stop filling this tray once it has taken its share, unless it is the last one.
+      if (!lastTray && consumedWidth >= budgetPerTray && layerBreak) break;
+
       if (opts.segregateFrc && placedCount === frcStartIndex && frcUnits.length > 0) {
         dividerXMm = cursorX + opts.dividerGapMm / 2;
         cursorX += opts.dividerGapMm;
       }
 
-      if (cursorX + unit.widthMm > opts.edgeClearanceMm + usableWidth) {
-        // Cable does not fit on this layer - start a new one if the tray still has height.
+      const needsNewLayer = layerBreak || cursorX + unit.widthMm > opts.edgeClearanceMm + usableWidth;
+      if (needsNewLayer && cables.length > 0) {
         const nextBaseY = baseY + layerHeight + opts.layerGapMm;
         if (layer >= opts.maxLayers || nextBaseY + unit.heightMm > opts.trayHeightMm) break;
         layer += 1;
@@ -225,6 +268,7 @@ export function arrangeCables(runs: CableRun[], opts: ArrangeOptions): TrayArran
         });
       }
       cursorX += unit.widthMm;
+      consumedWidth += unit.widthMm;
       occupiedWidth = Math.max(occupiedWidth, cursorX);
       layerHeight = Math.max(layerHeight, unit.heightMm);
       placedCount += 1;
@@ -243,7 +287,7 @@ export function arrangeCables(runs: CableRun[], opts: ArrangeOptions): TrayArran
     if (placedCount >= queue.length) break;
   }
 
-  const leftover = queue.slice(placedCount).reduce((s, u) => s + u.members.length, 0);
+  const leftover = queue.slice(placedCount).reduce((s, q) => s + q.unit.members.length, 0);
   if (trays.length > 0) trays[trays.length - 1].overflow = leftover;
   return trays;
 }
