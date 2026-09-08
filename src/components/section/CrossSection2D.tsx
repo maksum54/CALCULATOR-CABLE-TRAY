@@ -4,7 +4,7 @@
 // (x, y, r) from the arranger lands exactly where the calculation says it does - no scaling
 // fudge anywhere. That also makes the DXF export a direct transcription of these coordinates.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { PlacedCable, TrayType } from '../../core/types';
 import type { TrayArrangement } from '../../core/arranger';
 import { heatColor, shade, typeColor } from '../../core/colors';
@@ -62,15 +62,6 @@ export function CrossSection2D(props: CrossSectionProps) {
   const marginTop = margin + labelBand;
   const viewW = trayWidthMm + margin + marginRight;
   const viewH = trayHeightMm + margin + marginTop;
-
-  const reset = useCallback(() => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }, []);
-
-  useEffect(() => {
-    reset();
-  }, [tray.trayIndex, trayWidthMm, trayHeightMm, reset]);
 
   const onWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();

@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { ALL_ENTRIES, FAMILIES, isVerified } from '../../core/catalog';
 import { useAppStore } from '../../store/useAppStore';
-import { Badge, Button, GlassCard, SectionTitle, fmt, useT } from '../ui';
+import { Badge, Button, GlassCard, SectionTitle } from '../ui';
+import { useT } from '../ui/useT';
+import { fmt } from '../ui/format';
 
 /** Browsable cable catalogue: verified KMI datasheet data plus the project's own entries. */
 export function CatalogPanel() {

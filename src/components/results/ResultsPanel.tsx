@@ -1,6 +1,8 @@
 import { useAppStore } from '../../store/useAppStore';
 import { useCalculations } from '../../store/useCalculations';
-import { Badge, GlassCard, NoteList, SectionTitle, StatRow, fmt, pct, useT } from '../ui';
+import { Badge, GlassCard, NoteList, SectionTitle, StatRow } from '../ui';
+import { useT } from '../ui/useT';
+import { fmt, pct } from '../ui/format';
 
 /** Sections B..H of the reference workbook, rendered live. */
 export function ResultsPanel() {

@@ -4,7 +4,8 @@ import { OrbitControls } from '@react-three/drei';
 import { useAppStore } from '../../store/useAppStore';
 import { useCalculations } from '../../store/useCalculations';
 import { heatColor } from '../../core/colors';
-import { Button, GlassCard, SectionTitle, Toggle, useT } from '../ui';
+import { Button, GlassCard, SectionTitle, Toggle } from '../ui';
+import { useT } from '../ui/useT';
 import { FlyThrough, SceneSnapshot, TrayScene } from './TrayScene';
 
 /** The 3D tab: canvas plus the view controls that drive the animations. */

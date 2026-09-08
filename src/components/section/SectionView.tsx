@@ -3,7 +3,9 @@ import { useAppStore } from '../../store/useAppStore';
 import { useCalculations } from '../../store/useCalculations';
 import { findEntry } from '../../core/catalog';
 import { heatColor, typeColor } from '../../core/colors';
-import { Badge, Button, GlassCard, SectionTitle, Toggle, fmt, useT } from '../ui';
+import { Badge, Button, GlassCard, SectionTitle, Toggle } from '../ui';
+import { useT } from '../ui/useT';
+import { fmt } from '../ui/format';
 import { CrossSection2D } from './CrossSection2D';
 
 /** The 2D tab: drawing on the left, view controls and legend on the right. */
@@ -62,6 +64,9 @@ export function SectionView() {
         </SectionTitle>
         <div className="min-h-0 flex-1 px-2 pb-2">
           <CrossSection2D
+            /* Remount on a tray or size change so zoom and pan fall back to their initial
+               state - cheaper and more predictable than resetting them from an effect. */
+            key={`${tray.trayIndex}-${params.selectedTrayWidthMm}-${params.trayHeightMm}`}
             tray={tray}
             trayWidthMm={params.selectedTrayWidthMm}
             trayHeightMm={params.trayHeightMm}

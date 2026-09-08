@@ -6,10 +6,10 @@ import { calculateSizing, alternativeConfigurations } from '../traySizing';
 import { arrangeCables, DEFAULT_ARRANGE_OPTIONS } from '../arranger';
 import { calculateSupport, calculateWeight } from '../support';
 import { DEFAULT_PARAMS } from '../defaults';
-import { SAMPLE_SCHEDULE } from '../../data/sampleSchedule';
+import { REFERENCE_SCHEDULE } from '../../data/referenceSchedule';
 
 describe('tray sizing matches the reference workbook', () => {
-  const result = calculateSizing(SAMPLE_SCHEDULE, DEFAULT_PARAMS);
+  const result = calculateSizing(REFERENCE_SCHEDULE, DEFAULT_PARAMS);
 
   it('totals the schedule the same way', () => {
     expect(result.totalRuns).toBe(126);
@@ -49,7 +49,7 @@ describe('arrangement geometry', () => {
   };
 
   it('keeps every cable inside the tray envelope', () => {
-    const trays = arrangeCables(SAMPLE_SCHEDULE, opts);
+    const trays = arrangeCables(REFERENCE_SCHEDULE, opts);
     for (const tray of trays) {
       for (const c of tray.cables) {
         expect(c.x - c.r).toBeGreaterThanOrEqual(0);
@@ -61,13 +61,13 @@ describe('arrangement geometry', () => {
   });
 
   it('spaces cables by one diameter in flatSpaced mode', () => {
-    const flat = arrangeCables(SAMPLE_SCHEDULE, { ...opts, arrangement: 'flatTouching', autoArrange: false });
-    const spaced = arrangeCables(SAMPLE_SCHEDULE, { ...opts, arrangement: 'flatSpaced', autoArrange: false });
+    const flat = arrangeCables(REFERENCE_SCHEDULE, { ...opts, arrangement: 'flatTouching', autoArrange: false });
+    const spaced = arrangeCables(REFERENCE_SCHEDULE, { ...opts, arrangement: 'flatSpaced', autoArrange: false });
     expect(spaced[0].cables.length).toBeLessThan(flat[0].cables.length);
   });
 
   it('builds trefoil groups of three', () => {
-    const trefoil = arrangeCables(SAMPLE_SCHEDULE, { ...opts, arrangement: 'trefoil' });
+    const trefoil = arrangeCables(REFERENCE_SCHEDULE, { ...opts, arrangement: 'trefoil' });
     const groups = new Map<number, number>();
     for (const tray of trefoil) {
       for (const c of tray.cables) {
@@ -82,7 +82,7 @@ describe('arrangement geometry', () => {
 
 describe('weight and support', () => {
   it('produces a load and a deflection verdict', () => {
-    const weight = calculateWeight(SAMPLE_SCHEDULE, DEFAULT_PARAMS, 2);
+    const weight = calculateWeight(REFERENCE_SCHEDULE, DEFAULT_PARAMS, 2);
     expect(weight.cableKgPerM).toBeGreaterThan(0);
     const support = calculateSupport(weight, DEFAULT_PARAMS, 2);
     expect(support.allowableDeflectionMm).toBeCloseTo(1500 / 180, 6);

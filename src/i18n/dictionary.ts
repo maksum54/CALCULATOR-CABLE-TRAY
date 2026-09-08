@@ -211,6 +211,10 @@ export const DICT = {
   importReplace: { id: 'Ganti schedule', en: 'Replace schedule' },
   importFailed: { id: 'Import Gagal', en: 'Import Failed' },
   importMoreRows: { id: 'baris lagi tidak ditampilkan', en: 'more rows not shown' },
+  importDetected: { id: 'Kolom terbaca', en: 'Columns detected' },
+  importDetectedType: { id: 'TYPE', en: 'TYPE' },
+  importDetectedOd: { id: 'OD', en: 'OD' },
+  importDetectedHeader: { id: 'baris header', en: 'header row' },
   close: { id: 'Tutup', en: 'Close' },
   cancel: { id: 'Batal', en: 'Cancel' },
 } as const;

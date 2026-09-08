@@ -3,7 +3,9 @@ import { ALL_ENTRIES, findEntry, isVerified } from '../../core/catalog';
 import { cableArea } from '../../core/traySizing';
 import { typeColor } from '../../core/colors';
 import { useAppStore } from '../../store/useAppStore';
-import { Badge, Button, GlassCard, SectionTitle, fmt, useT } from '../ui';
+import { Badge, Button, GlassCard, SectionTitle } from '../ui';
+import { useT } from '../ui/useT';
+import { fmt } from '../ui/format';
 import { ImportScheduleButton } from './ImportScheduleButton';
 import type { CableRun } from '../../core/types';
 

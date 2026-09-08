@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { useCalculations } from '../../store/useCalculations';
 import { heatColor } from '../../core/colors';
-import { Badge, GlassCard, NoteList, SectionTitle, StatRow, fmt, pct, useT } from '../ui';
+import { Badge, GlassCard, NoteList, SectionTitle, StatRow } from '../ui';
+import { useT } from '../ui/useT';
+import { fmt, pct } from '../ui/format';
 
 /** Grouping + ambient derating, and the per-circuit loading table behind the heat map. */
 export function ThermalPanel() {
