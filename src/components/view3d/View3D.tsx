@@ -5,13 +5,14 @@ import { useAppStore } from '../../store/useAppStore';
 import { useCalculations } from '../../store/useCalculations';
 import { heatColor } from '../../core/colors';
 import { Button, GlassCard, SectionTitle, Toggle, useT } from '../ui';
-import { FlyThrough, TrayScene } from './TrayScene';
+import { FlyThrough, SceneSnapshot, TrayScene } from './TrayScene';
 
 /** The 3D tab: canvas plus the view controls that drive the animations. */
 export function View3D() {
   const t = useT();
   const params = useAppStore((s) => s.params);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
+  const setScenePng = useAppStore((s) => s.setScenePng);
   const { trays, derating } = useCalculations();
 
   const [explode, setExplode] = useState(0);
@@ -60,7 +61,7 @@ export function View3D() {
             shadows
             dpr={[1, 2]}
             camera={camera}
-            gl={{ antialias: true }}
+            gl={{ antialias: true, preserveDrawingBuffer: true }}
             style={{ borderRadius: '0.9rem' }}
           >
             <color attach="background" args={['#0a0f1a']} />
@@ -79,6 +80,7 @@ export function View3D() {
                 selectedRunId={selectedRunId}
               />
               <FlyThrough active={flying} lengthM={lengthM} onDone={() => setFlying(false)} />
+              <SceneSnapshot deps={[trays, explode, showCover, showHeatmap, lengthM, flying]} onCapture={setScenePng} />
             </Suspense>
             {!flying && (
               <OrbitControls

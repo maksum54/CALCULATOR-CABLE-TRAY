@@ -37,6 +37,12 @@ interface AppState {
   panelFilter: string;
   selectedTrayIndex: number;
   selectedRunId: string | null;
+  /**
+   * Last frame captured from the 3D canvas. The canvas unmounts when the user leaves the 3D
+   * tab, so the report would otherwise never get its 3D view - the scene caches it here while
+   * it is on screen. Kept out of persistence: it is a large data URL and always re-capturable.
+   */
+  scenePng: string | null;
 
   setLang: (lang: Lang) => void;
   toggleTheme: () => void;
@@ -47,6 +53,7 @@ interface AppState {
   setPanelFilter: (panel: string) => void;
   setSelectedTray: (index: number) => void;
   setSelectedRun: (id: string | null) => void;
+  setScenePng: (png: string | null) => void;
 
   addRun: (run: CableRun) => void;
   updateRun: (id: string, patch: Partial<CableRun>) => void;
@@ -78,6 +85,7 @@ export const useAppStore = create<AppState>()(
       panelFilter: 'ALL',
       selectedTrayIndex: 0,
       selectedRunId: null,
+      scenePng: null,
 
       setLang: (lang) => set({ lang }),
       toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
@@ -88,6 +96,7 @@ export const useAppStore = create<AppState>()(
       setPanelFilter: (panelFilter) => set({ panelFilter, selectedTrayIndex: 0 }),
       setSelectedTray: (selectedTrayIndex) => set({ selectedTrayIndex }),
       setSelectedRun: (selectedRunId) => set({ selectedRunId }),
+      setScenePng: (scenePng) => set({ scenePng }),
 
       addRun: (run) => set((s) => ({ schedule: [...s.schedule, run] })),
       updateRun: (id, patch) =>
@@ -97,7 +106,11 @@ export const useAppStore = create<AppState>()(
       loadSample: () => set({ schedule: SAMPLE_SCHEDULE, panelFilter: 'ALL', selectedTrayIndex: 0 }),
       clearSchedule: () => set({ schedule: [], selectedTrayIndex: 0 }),
     }),
-    { name: 'cable-tray-calculator' },
+    {
+      name: 'cable-tray-calculator',
+      // scenePng is a multi-megabyte data URL; never write it to localStorage.
+      partialize: ({ scenePng: _scenePng, ...rest }) => rest,
+    },
   ),
 );
 

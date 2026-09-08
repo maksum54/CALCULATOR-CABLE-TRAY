@@ -1,5 +1,5 @@
 {
-  "name": "calculator-cable-tray",
+  "name": "cable-tray-calculator",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
@@ -30,10 +32,10 @@
     "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^6.1.0",
     "oxlint": "^1.79.0",
-    "playwright": "^1.63.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vite": "^8.2.2",
     "vitest": "^5.0.0"
-  }
+  },
+  "description": "Cable tray sizing calculator, 2D cross-section and 3D visualiser with Excel / PDF / DXF / BIM export"
 }

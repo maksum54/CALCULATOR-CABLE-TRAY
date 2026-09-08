@@ -245,6 +245,33 @@ function Hangers({
   );
 }
 
+/**
+ * Keeps a PNG of the current frame in the store so the PDF report can include the 3D view even
+ * though the canvas unmounts when the user switches tab. Captures shortly after any change
+ * settles, which also avoids grabbing a half-drawn first frame.
+ */
+export function SceneSnapshot({ deps, onCapture }: { deps: unknown[]; onCapture: (png: string) => void }) {
+  const gl = useThree((s) => s.gl);
+  const pending = useRef(0);
+
+  useFrame(() => {
+    if (pending.current === 0 || performance.now() < pending.current) return;
+    pending.current = 0;
+    try {
+      onCapture(gl.domElement.toDataURL('image/png'));
+    } catch {
+      // A tainted or lost context simply means no snapshot this time.
+    }
+  });
+
+  useEffect(() => {
+    pending.current = performance.now() + 500;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  return null;
+}
+
 /** Drives the camera along the tray axis for the fly-through. */
 export function FlyThrough({ active, lengthM, onDone }: { active: boolean; lengthM: number; onDone: () => void }) {
   const { camera } = useThree();

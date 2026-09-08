@@ -9,3 +9,6 @@ dist-ssr
 *.log
 coverage
 .vite
+exports
+shot-*.png
+pdf-p*.png

@@ -11,6 +11,7 @@ import { ThermalPanel } from './components/engineering/ThermalPanel';
 import { SupportPanel } from './components/engineering/SupportPanel';
 import { BendingPanel } from './components/engineering/BendingPanel';
 import { CatalogPanel } from './components/engineering/CatalogPanel';
+import { ExportPanel } from './components/export/ExportPanel';
 import type { DictKey } from './i18n';
 
 const TABS: { id: string; key: DictKey }[] = [
@@ -70,11 +71,7 @@ export default function App() {
             {tab === 'support' && <SupportPanel />}
             {tab === 'bending' && <BendingPanel />}
             {tab === 'catalog' && <CatalogPanel />}
-            {!['schedule', 'section', 'view3d', 'results', 'thermal', 'support', 'bending', 'catalog'].includes(tab) && (
-              <GlassCard className="p-8 text-center text-[13px]" >
-                <span style={{ color: 'var(--text-muted)' }}>{t(TABS.find((x) => x.id === tab)!.key)}</span>
-              </GlassCard>
-            )}
+            {tab === 'export' && <ExportPanel />}
           </main>
         </div>
       </div>
