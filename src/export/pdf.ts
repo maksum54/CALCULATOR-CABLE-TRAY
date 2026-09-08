@@ -101,25 +101,69 @@ export function buildReport(input: PdfInput): Blob {
   const t = T[input.lang];
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  /** Baris terakhir yang boleh dipakai isi halaman - di bawahnya milik footer. */
+  const bottom = pageH - 18;
   let y = M;
 
-  // ------------------------------------------------------------------ title block
-  doc.setFillColor(...NAVY);
-  doc.rect(0, 0, pageW, 26, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold').setFontSize(14);
-  doc.text(t.report, M, 12);
-  doc.setFont('helvetica', 'normal').setFontSize(9);
-  doc.text(`${project.name}`, M, 19);
-  doc.text(`${project.drawingNo}  ${project.revision}  ${project.date}`, pageW - M, 19, { align: 'right' });
-  doc.setTextColor(0, 0, 0);
-  y = 34;
-
-  const section = (label: string) => {
-    if (y > 250) {
+  /**
+   * Pindah halaman hanya kalau sisa ruang kurang dari yang dibutuhkan. Dulu beberapa bagian
+   * memanggil addPage() tanpa syarat, sehingga halaman setengah kosong muncul di tengah
+   * laporan setiap kali bagian sebelumnya kebetulan berakhir di awal halaman.
+   */
+  const needSpace = (mm: number) => {
+    if (y + mm > bottom) {
       doc.addPage();
       y = M + 6;
     }
+  };
+
+  // ------------------------------------------------------------------ title block
+  const bandH = 30;
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, pageW, bandH, 'F');
+
+  // Logo diberi alas putih: logo bertinta gelap dengan latar transparan akan hilang di
+  // atas band navy.
+  let rightLimit = pageW - M;
+  if (project.logo) {
+    try {
+      const props = doc.getImageProperties(project.logo);
+      const maxW = 30;
+      const maxH = 14;
+      const scale = Math.min(maxW / props.width, maxH / props.height);
+      const w = props.width * scale;
+      const h = props.height * scale;
+      const x = pageW - M - w;
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(x - 2, 4, w + 4, h + 4, 1, 1, 'F');
+      // LogoField selalu menyimpan hasil canvas.toDataURL('image/png').
+      doc.addImage(project.logo, 'PNG', x, 6, w, h);
+      rightLimit = x - 4;
+    } catch {
+      // Data URL rusak / format tidak didukung jsPDF - kop tetap dicetak tanpa logo.
+    }
+  }
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold').setFontSize(14);
+  doc.text(t.report, M, 11);
+  doc.setFont('helvetica', 'normal').setFontSize(9);
+  if (project.company) {
+    doc.setFont('helvetica', 'bold').setFontSize(9.5);
+    doc.text(project.company, M, 18);
+    doc.setFont('helvetica', 'normal').setFontSize(9);
+  }
+  const projectLine = project.company ? 24 : 19;
+  doc.text(project.name, M, projectLine);
+  doc.text(`${project.drawingNo}  ${project.revision}  ${project.date}`, rightLimit, projectLine, {
+    align: 'right',
+  });
+  doc.setTextColor(0, 0, 0);
+  y = bandH + 8;
+
+  const section = (label: string) => {
+    needSpace(24);
     doc.setFont('helvetica', 'bold').setFontSize(10).setTextColor(...NAVY);
     doc.text(label, M, y);
     doc.setTextColor(0, 0, 0);
@@ -213,12 +257,11 @@ export function buildReport(input: PdfInput): Blob {
 
   // ------------------------------------------------------------------ F. cross-section
   if (input.sectionPng) {
-    doc.addPage();
-    y = M + 6;
-    section(t.section);
     const w = pageW - 2 * M;
     const props = doc.getImageProperties(input.sectionPng);
     const h = (props.height / props.width) * w;
+    needSpace(h + 30); // judul + gambar + keterangan di bawahnya
+    section(t.section);
     doc.addImage(input.sectionPng, 'PNG', M, y + 2, w, h);
     y += h + 8;
     doc.setFontSize(7.5).setTextColor(...GREY);
@@ -233,17 +276,17 @@ export function buildReport(input: PdfInput): Blob {
   }
 
   if (input.scenePng) {
-    section(t.view3d);
     const w = pageW - 2 * M;
     const props = doc.getImageProperties(input.scenePng);
     const h = Math.min((props.height / props.width) * w, 95);
+    needSpace(h + 16);
+    section(t.view3d);
     doc.addImage(input.scenePng, 'PNG', M, y + 2, w, h);
     y += h + 8;
   }
 
   // ------------------------------------------------------------------ H. weight & support
-  doc.addPage();
-  y = M + 6;
+  needSpace(70);
   section(t.weight);
   table([t.desc, t.value, t.unit, t.formula], [
     [input.lang === 'id' ? 'Berat kabel' : 'Cable weight', n(weight.cableKgPerM), 'kg/m', 'sigma (qty x kg/km) / 1000'],
@@ -286,8 +329,7 @@ export function buildReport(input: PdfInput): Blob {
   y += 8;
 
   // ------------------------------------------------------------------ K. notes
-  doc.addPage();
-  y = M + 6;
+  needSpace(60);
   section(t.notes);
   const notes = [
     ...sizing.fillDetail.messages,
@@ -304,21 +346,32 @@ export function buildReport(input: PdfInput): Blob {
   table(['No', t.desc], notes.map((note, i) => [String(i + 1), note]), { 0: { cellWidth: 10 } });
 
   // ------------------------------------------------------------------ stamp
-  if (y > 210) {
-    doc.addPage();
-    y = M + 6;
-  }
+  const stampH = 46;
+  needSpace(stampH + 6);
   const stampY = y + 4;
-  const boxW = (pageW - 2 * M) / 3;
+  const stampW = pageW - 2 * M;
+  const boxW = stampW / 3;
+  const overall = sizing.fillCheckPass && support.deflectionPass && support.rodPass && derating.worstUtilisation <= 1;
+
   doc.setDrawColor(...NAVY).setLineWidth(0.4);
-  doc.rect(M, stampY, pageW - 2 * M, 46);
+  doc.rect(M, stampY, stampW, stampH);
   doc.setFillColor(...NAVY);
-  doc.rect(M, stampY, pageW - 2 * M, 7, 'F');
+  doc.rect(M, stampY, stampW, 7, 'F');
   doc.setTextColor(255, 255, 255).setFont('helvetica', 'bold').setFontSize(8.5);
   doc.text(t.stamp, M + 3, stampY + 5);
-  doc.setTextColor(0, 0, 0).setFont('helvetica', 'normal').setFontSize(8);
 
-  const overall = sizing.fillCheckPass && support.deflectionPass && support.rodPass && derating.worstUtilisation <= 1;
+  // Verdict duduk sebagai badge di dalam pita judul stempel. Sebelumnya digambar pada
+  // baris yang sama dengan label kotak ketiga ("Disetujui oleh") sehingga saling menimpa.
+  const verdict = `${input.lang === 'id' ? 'HASIL KESELURUHAN' : 'OVERALL RESULT'}: ${overall ? t.ok : t.bad}`;
+  doc.setFontSize(8);
+  const badgeW = doc.getTextWidth(verdict) + 6;
+  const badgeX = pageW - M - 2 - badgeW;
+  doc.setFillColor(...(overall ? OK : BAD));
+  doc.roundedRect(badgeX, stampY + 1.4, badgeW, 4.4, 0.8, 0.8, 'F');
+  doc.setTextColor(255, 255, 255).setFont('helvetica', 'bold');
+  doc.text(verdict, badgeX + badgeW / 2, stampY + 4.6, { align: 'center' });
+
+  doc.setTextColor(0, 0, 0).setFont('helvetica', 'normal').setFontSize(8);
   const cells: [string, string][] = [
     [t.prepared, project.preparedBy || ''],
     [t.checked, project.checkedBy || ''],
@@ -326,7 +379,10 @@ export function buildReport(input: PdfInput): Blob {
   ];
   cells.forEach(([label, name], i) => {
     const x = M + i * boxW;
-    if (i > 0) doc.line(x, stampY + 7, x, stampY + 46);
+    if (i > 0) {
+      doc.setDrawColor(...NAVY).setLineWidth(0.4);
+      doc.line(x, stampY + 7, x, stampY + stampH);
+    }
     doc.setFontSize(7).setTextColor(...GREY);
     doc.text(label, x + 3, stampY + 13);
     doc.setFontSize(8.5).setTextColor(0, 0, 0);
@@ -336,17 +392,8 @@ export function buildReport(input: PdfInput): Blob {
     doc.setFontSize(7).setTextColor(...GREY);
     doc.text(`${t.date}: ${project.date}`, x + 3, stampY + 41);
   });
-
-  doc.setDrawColor(...NAVY).setLineWidth(0.4);
-  doc.setFontSize(9).setFont('helvetica', 'bold');
-  doc.setTextColor(...(overall ? OK : BAD));
-  doc.text(
-    `${input.lang === 'id' ? 'HASIL KESELURUHAN' : 'OVERALL RESULT'}: ${overall ? t.ok : t.bad}`,
-    pageW - M - 3,
-    stampY + 13,
-    { align: 'right' },
-  );
   doc.setTextColor(0, 0, 0).setFont('helvetica', 'normal');
+  y = stampY + stampH + 6;
 
   // ------------------------------------------------------------------ footers
   const pages = doc.getNumberOfPages();
@@ -356,7 +403,8 @@ export function buildReport(input: PdfInput): Blob {
     doc.setDrawColor(...NAVY).setLineWidth(0.3);
     doc.line(M, h - 12, pageW - M, h - 12);
     doc.setFontSize(7).setTextColor(...GREY);
-    doc.text(`${project.name} - ${project.drawingNo} ${project.revision}`, M, h - 8);
+    const ref = [project.company, project.name].filter(Boolean).join(' - ');
+    doc.text(`${ref} - ${project.drawingNo} ${project.revision}`, M, h - 8);
     doc.text(`${t.page} ${p} / ${pages}`, pageW - M, h - 8, { align: 'right' });
     doc.setTextColor(0, 0, 0);
   }

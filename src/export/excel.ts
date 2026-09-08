@@ -30,6 +30,38 @@ const WARN_FILL = 'FFFCE4D6';
 
 type Ws = ExcelJS.Worksheet;
 
+/**
+ * Ukuran piksel PNG dibaca langsung dari header IHDR-nya (8 byte signature, 4 byte panjang
+ * chunk, 4 byte "IHDR", lalu width dan height masing-masing 4 byte big-endian). Dipakai
+ * untuk menjaga proporsi logo tanpa perlu decoder gambar.
+ */
+function pngSize(dataUrl: string): { width: number; height: number } | undefined {
+  const comma = dataUrl.indexOf(',');
+  if (comma === -1) return undefined;
+  try {
+    const head = atob(dataUrl.slice(comma + 1, comma + 64));
+    if (head.length < 24 || head.slice(12, 16) !== 'IHDR') return undefined;
+    const be = (at: number) =>
+      ((head.charCodeAt(at) << 24) | (head.charCodeAt(at + 1) << 16) | (head.charCodeAt(at + 2) << 8) | head.charCodeAt(at + 3)) >>> 0;
+    const width = be(16);
+    const height = be(20);
+    return width > 0 && height > 0 ? { width, height } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Tempel logo perusahaan di sebelah kanan kolom terpakai, jadi tidak menutupi data. */
+function placeLogo(ws: Ws, imageId: number | undefined, size: { width: number; height: number } | undefined, span: number): void {
+  if (imageId === undefined || !size) return;
+  const scale = Math.min(150 / size.width, 56 / size.height);
+  ws.addImage(imageId, {
+    tl: { col: span + 0.3, row: 0.2 },
+    ext: { width: size.width * scale, height: size.height * scale },
+  });
+}
+
+
 function titleRow(ws: Ws, row: number, text: string, span: number, sub?: string): void {
   ws.mergeCells(row, 1, row, span);
   const cell = ws.getCell(row, 1);
@@ -97,6 +129,15 @@ export async function buildWorkbook(input: ExcelInput): Promise<Blob> {
   wb.creator = 'Cable Tray Calculator';
   wb.created = new Date();
 
+  // Kop: nama perusahaan mendahului nama proyek di setiap sheet, logo ditempel sekali dan
+  // dipakai ulang di sheet-sheet utama.
+  const docRef = [project.company, project.name].filter(Boolean).join(' - ');
+  const logoSize = project.logo ? pngSize(project.logo) : undefined;
+  const logoId =
+    project.logo && logoSize
+      ? wb.addImage({ base64: project.logo.slice(project.logo.indexOf(',') + 1), extension: 'png' })
+      : undefined;
+
   // Cable types actually used, in schedule order.
   const usedCodes = [...new Set(schedule.map((r) => r.typeCode))];
   const entries = usedCodes.map((c) => findEntry(c)).filter((e): e is NonNullable<typeof e> => Boolean(e));
@@ -108,7 +149,8 @@ export async function buildWorkbook(input: ExcelInput): Promise<Blob> {
     { width: 22 }, { width: 52 }, { width: 14 }, { width: 14 }, { width: 16 },
   ];
   titleRow(data, 1, 'CABLE OUTER DIAMETER TABLE - INPUT DATA', 9,
-    'Yellow cells are input. KMI rows are transcribed from the manufacturer datasheet; rows marked UNVERIFIED come from project data and must be checked against the catalogue actually used.');
+    `${docRef} - ${project.drawingNo} ${project.revision}. Yellow cells are input. KMI rows are transcribed from the manufacturer datasheet; rows marked UNVERIFIED come from project data and must be checked against the catalogue actually used.`);
+  placeLogo(data, logoId, logoSize, 9);
   headerRow(data, 4, ['NO', 'CABLE TYPE', 'INSULATION', 'OD (mm)', 'OUTER AREA (mm2)', 'REMARKS', 'CODE', 'WEIGHT (kg/km)', 'DATA SOURCE']);
 
   const dataFirst = 5;
@@ -144,7 +186,8 @@ export async function buildWorkbook(input: ExcelInput): Promise<Blob> {
     { width: 38 }, { width: 12 }, { width: 10 }, { width: 11 }, { width: 15 }, { width: 16 },
   ];
   titleRow(sch, 1, 'COMBINED CABLE SCHEDULE', 11,
-    `${project.name} - ${project.drawingNo} ${project.revision}. OD is looked up from the CABLE DATA (OD) sheet, so editing an OD there updates every row here.`);
+    `${docRef} - ${project.drawingNo} ${project.revision}. OD is looked up from the CABLE DATA (OD) sheet, so editing an OD there updates every row here.`);
+  placeLogo(sch, logoId, logoSize, 11);
   headerRow(sch, 4, ['NO', 'PANEL', 'CIRCUIT No.', 'CATEGORY', 'LOAD (kW)', 'CABLE DESCRIPTION', 'TYPE', 'QTY OF RUNS', 'OD (mm)', 'TOTAL WIDTH (mm)', 'TOTAL AREA (mm2)']);
 
   const schFirst = 5;
@@ -184,7 +227,8 @@ export async function buildWorkbook(input: ExcelInput): Promise<Blob> {
   // ---------------------------------------------------------------- SUMMARY BY TYPE
   const sum = wb.addWorksheet('SUMMARY BY TYPE');
   sum.columns = [{ width: 6 }, { width: 16 }, { width: 12 }, { width: 14 }, { width: 18 }, { width: 18 }, { width: 16 }, { width: 16 }];
-  titleRow(sum, 1, 'CABLE QUANTITY SUMMARY', 8);
+  titleRow(sum, 1, 'CABLE QUANTITY SUMMARY', 8, `${docRef} - ${project.drawingNo} ${project.revision}`);
+  placeLogo(sum, logoId, logoSize, 8);
   headerRow(sum, 3, ['NO', 'CABLE TYPE', 'OD (mm)', 'QTY OF RUNS', 'TOTAL WIDTH (mm)', 'TOTAL AREA (mm2)', 'WEIGHT (kg/m)', '% OF TOTAL WIDTH']);
 
   const sumFirst = 4;
@@ -234,7 +278,8 @@ export async function buildWorkbook(input: ExcelInput): Promise<Blob> {
   // ---------------------------------------------------------------- TRAY CALCULATION
   const calc = wb.addWorksheet('TRAY CALCULATION');
   calc.columns = [{ width: 6 }, { width: 42 }, { width: 16 }, { width: 12 }, { width: 62 }];
-  titleRow(calc, 1, 'CABLE TRAY SIZING CALCULATION', 5, `${project.name} - ${project.drawingNo} ${project.revision} - ${project.date}`);
+  titleRow(calc, 1, 'CABLE TRAY SIZING CALCULATION', 5, `${docRef} - ${project.drawingNo} ${project.revision} - ${project.date}`);
+  placeLogo(calc, logoId, logoSize, 5);
 
   calc.getCell(4, 1).value = 'A. DESIGN PARAMETERS (yellow cells = input)';
   calc.getCell(4, 1).font = { bold: true, color: { argb: 'FF1F3864' } };
@@ -319,7 +364,8 @@ export async function buildWorkbook(input: ExcelInput): Promise<Blob> {
   // ---------------------------------------------------------------- BOQ
   const boq = wb.addWorksheet('BOQ');
   boq.columns = [{ width: 6 }, { width: 46 }, { width: 14 }, { width: 12 }, { width: 46 }];
-  titleRow(boq, 1, 'BILL OF QUANTITIES', 5, `Route length ${params.routeLengthM} m, ${sizing.trayRunsRequired} tray run(s) of ${params.selectedTrayWidthMm} x ${params.trayHeightMm} mm`);
+  placeLogo(boq, logoId, logoSize, 5);
+  titleRow(boq, 1, 'BILL OF QUANTITIES', 5, `${docRef}. Route length ${params.routeLengthM} m, ${sizing.trayRunsRequired} tray run(s) of ${params.selectedTrayWidthMm} x ${params.trayHeightMm} mm`);
   headerRow(boq, 3, ['NO', 'DESCRIPTION', 'QUANTITY', 'UNIT', 'REMARKS']);
 
   let br = 4;
@@ -367,7 +413,7 @@ export async function buildWorkbook(input: ExcelInput): Promise<Blob> {
   // ---------------------------------------------------------------- NOTES
   const notes = wb.addWorksheet('NOTES & DATA SOURCE');
   notes.columns = [{ width: 6 }, { width: 130 }];
-  titleRow(notes, 1, 'NOTES, ASSUMPTIONS & DATA PROVENANCE', 2);
+  titleRow(notes, 1, 'NOTES, ASSUMPTIONS & DATA PROVENANCE', 2, `${docRef} - ${project.drawingNo} ${project.revision}`);
 
   const noteList: string[] = [
     `Calculation standard applied: ${sizing.fillDetail.labelEn}. The practice40 rule reproduces CABLETRAYCALCULATION_RMW_1.xlsx exactly.`,
@@ -392,6 +438,12 @@ export async function buildWorkbook(input: ExcelInput): Promise<Blob> {
   });
 
   const stampRow = 3 + noteList.length + 2;
+  if (project.company) {
+    notes.getCell(stampRow - 1, 1).value = 'COMPANY';
+    notes.getCell(stampRow - 1, 2).value = project.company;
+    notes.getCell(stampRow - 1, 1).font = { bold: true, color: { argb: 'FF1F3864' } };
+    notes.getCell(stampRow - 1, 2).font = { bold: true };
+  }
   notes.getCell(stampRow, 1).value = 'PREPARED BY';
   notes.getCell(stampRow, 2).value = project.preparedBy || '..............................';
   notes.getCell(stampRow + 1, 1).value = 'CHECKED BY';

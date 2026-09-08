@@ -8,6 +8,7 @@
 
 import type { TrayArrangement } from '../core/arranger';
 import type { TrayType } from '../core/types';
+import { LABEL_PITCH_MM, layoutLabelAnchors } from '../core/labelLayout';
 
 const RAIL = 6;
 
@@ -141,12 +142,21 @@ export function buildSectionDxf(o: DxfOptions): string {
     d.circle('CABLE-CORE', c.x, c.y, c.r * 0.42);
   }
 
-  // Cable tags in a band above the tray, matching the on-screen drawing
+  // Cable tags in a band above the tray, matching the on-screen drawing - same anchor
+  // spreading, so the DXF and the PDF section carry identical tag positions.
   if (o.showLabels) {
-    for (const c of tray.cables) {
-      d.line('DIM', c.x, c.y + c.r + 1, c.x, H + 7);
-      d.text('TEXT', c.x - 1.8, H + 9, 4.5, c.label, 90);
-    }
+    const anchors = layoutLabelAnchors(tray.cables.map((c) => c.x), {
+      pitchMm: LABEL_PITCH_MM,
+      minX: 0,
+      maxX: W,
+    });
+    tray.cables.forEach((c, i) => {
+      const top = c.y + c.r + 1;
+      const kink = top + (H + 6 - top) * 0.45;
+      d.line('DIM', c.x, top, c.x, kink);
+      d.line('DIM', c.x, kink, anchors[i], H + 7);
+      d.text('TEXT', anchors[i] - 1.8, H + 9, 4.5, c.label, 90);
+    });
   }
 
   // Dimensions
