@@ -104,7 +104,6 @@ export const DICT = {
   // Bending
   bendingTitle: { id: 'Radius Lengkung Minimum', en: 'Minimum Bending Radius' },
   minRadius: { id: 'Radius lengkung minimum', en: 'Minimum bending radius' },
-  governingRadius: { id: 'Radius penentu', en: 'Governing radius' },
   fitting: { id: 'Aksesori', en: 'Fitting' },
   standardRadius: { id: 'Radius standar pabrikan', en: 'Standard manufacturer radius' },
   pullingTension: { id: 'Tegangan tarik kabel', en: 'Cable pulling tension' },
@@ -153,16 +152,12 @@ export const DICT = {
   deleteCable: { id: 'Hapus', en: 'Delete' },
   loadSample: { id: 'Muat data contoh', en: 'Load sample data' },
   clearAll: { id: 'Kosongkan', en: 'Clear all' },
-  filterPanel: { id: 'Filter panel', en: 'Filter panel' },
   allPanels: { id: 'Semua panel', en: 'All panels' },
   searchPlaceholder: { id: 'Cari sirkuit / panel...', en: 'Search circuit / panel...' },
 
   // Catalogue
   catalogTitle: { id: 'Katalog Kabel', en: 'Cable Catalogue' },
-  catalogKmi: { id: 'KMI (terverifikasi dari datasheet)', en: 'KMI (verified from datasheet)' },
-  catalogProject: { id: 'Data proyek (belum terverifikasi)', en: 'Project data (unverified)' },
   verified: { id: 'Terverifikasi', en: 'Verified' },
-  unverified: { id: 'Belum terverifikasi', en: 'Unverified' },
   weightKgKm: { id: 'Berat', en: 'Weight' },
   cores: { id: 'Inti', en: 'Cores' },
   size: { id: 'Ukuran', en: 'Size' },
@@ -192,12 +187,7 @@ export const DICT = {
   // Verdicts and shared words
   ok: { id: 'MEMENUHI', en: 'PASS' },
   notOk: { id: 'TIDAK MEMENUHI', en: 'FAIL' },
-  warning: { id: 'Perhatian', en: 'Warning' },
   notes: { id: 'Catatan & Asumsi', en: 'Notes & Assumptions' },
-  value: { id: 'Nilai', en: 'Value' },
-  unit: { id: 'Satuan', en: 'Unit' },
-  description: { id: 'Uraian', en: 'Description' },
-  remarks: { id: 'Keterangan', en: 'Remarks' },
   no: { id: 'No', en: 'No' },
   total: { id: 'TOTAL', en: 'TOTAL' },
   parameter: { id: 'Parameter', en: 'Parameter' },
@@ -205,7 +195,6 @@ export const DICT = {
   cables: { id: 'kabel', en: 'cables' },
   layer: { id: 'lapis', en: 'layer' },
   run: { id: 'jalur', en: 'run' },
-  language: { id: 'Bahasa', en: 'Language' },
   theme: { id: 'Tema', en: 'Theme' },
   overflowWarning: {
     id: '{n} kabel tidak muat pada konfigurasi ini - tambah lebar tray, tambah lapis, atau tambah jalur tray.',

@@ -115,7 +115,7 @@ export function SectionView() {
 
         <GlassCard>
           <SectionTitle right={<Badge tone={sizing.fillCheckPass ? 'ok' : 'danger'}>{sizing.fillCheckPass ? t('ok') : t('notOk')}</Badge>}>
-            {t('type')}
+            {t('legendTitle')}
           </SectionTitle>
           <div className="px-4 pb-3">
             {legend.map(([code, count]) => {
