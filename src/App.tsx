@@ -6,6 +6,7 @@ import { ParamsPanel } from './components/panels/ParamsPanel';
 import { ScheduleTable } from './components/schedule/ScheduleTable';
 import { SectionView } from './components/section/SectionView';
 import { ResultsPanel } from './components/results/ResultsPanel';
+import { View3D } from './components/view3d/View3D';
 import type { DictKey } from './i18n';
 
 const TABS: { id: string; key: DictKey }[] = [
@@ -59,8 +60,9 @@ export default function App() {
           <main className="tab-enter min-h-0 overflow-auto scroll-thin" key={tab}>
             {tab === 'schedule' && <ScheduleTable />}
             {tab === 'section' && <SectionView />}
+            {tab === 'view3d' && <View3D />}
             {tab === 'results' && <ResultsPanel />}
-            {tab !== 'schedule' && tab !== 'section' && tab !== 'results' && (
+            {!['schedule', 'section', 'view3d', 'results'].includes(tab) && (
               <GlassCard className="p-8 text-center text-[13px]" >
                 <span style={{ color: 'var(--text-muted)' }}>{t(TABS.find((x) => x.id === tab)!.key)}</span>
               </GlassCard>
