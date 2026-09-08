@@ -7,6 +7,10 @@ import { ScheduleTable } from './components/schedule/ScheduleTable';
 import { SectionView } from './components/section/SectionView';
 import { ResultsPanel } from './components/results/ResultsPanel';
 import { View3D } from './components/view3d/View3D';
+import { ThermalPanel } from './components/engineering/ThermalPanel';
+import { SupportPanel } from './components/engineering/SupportPanel';
+import { BendingPanel } from './components/engineering/BendingPanel';
+import { CatalogPanel } from './components/engineering/CatalogPanel';
 import type { DictKey } from './i18n';
 
 const TABS: { id: string; key: DictKey }[] = [
@@ -62,7 +66,11 @@ export default function App() {
             {tab === 'section' && <SectionView />}
             {tab === 'view3d' && <View3D />}
             {tab === 'results' && <ResultsPanel />}
-            {!['schedule', 'section', 'view3d', 'results'].includes(tab) && (
+            {tab === 'thermal' && <ThermalPanel />}
+            {tab === 'support' && <SupportPanel />}
+            {tab === 'bending' && <BendingPanel />}
+            {tab === 'catalog' && <CatalogPanel />}
+            {!['schedule', 'section', 'view3d', 'results', 'thermal', 'support', 'bending', 'catalog'].includes(tab) && (
               <GlassCard className="p-8 text-center text-[13px]" >
                 <span style={{ color: 'var(--text-muted)' }}>{t(TABS.find((x) => x.id === tab)!.key)}</span>
               </GlassCard>

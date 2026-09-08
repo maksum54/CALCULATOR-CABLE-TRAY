@@ -83,6 +83,7 @@ export const DICT = {
   deratedAmpacity: { id: 'KHA terkoreksi', en: 'Derated ampacity' },
   designCurrent: { id: 'Arus desain', en: 'Design current' },
   utilisation: { id: 'Utilisasi', en: 'Utilisation' },
+  worstUtilisation: { id: 'Utilisasi tertinggi antar sirkuit', en: 'Highest utilisation across circuits' },
   heatmap: { id: 'Heatmap termal', en: 'Thermal heat map' },
   heatmapNote: {
     id: 'Gradien warna adalah peringkat termal indikatif (posisi kabel + pembebanan terkoreksi), bukan suhu konduktor hasil IEC 60287.',
