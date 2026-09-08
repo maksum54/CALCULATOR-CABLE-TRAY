@@ -204,6 +204,15 @@ export const DICT = {
     id: 'Nilai bertanda kuning berasal dari data proyek yang belum diverifikasi ke katalog pabrikan.',
     en: 'Values flagged amber come from project data that has not been verified against a manufacturer catalogue.',
   },
+  importSchedule: { id: 'Import Excel/CSV', en: 'Import Excel/CSV' },
+  importPreviewTitle: { id: 'Pratinjau Import Schedule', en: 'Schedule Import Preview' },
+  importBadge: { id: 'Dibaca di browser', en: 'Parsed in browser' },
+  importAppend: { id: 'Tambahkan ke schedule', en: 'Append to schedule' },
+  importReplace: { id: 'Ganti schedule', en: 'Replace schedule' },
+  importFailed: { id: 'Import Gagal', en: 'Import Failed' },
+  importMoreRows: { id: 'baris lagi tidak ditampilkan', en: 'more rows not shown' },
+  close: { id: 'Tutup', en: 'Close' },
+  cancel: { id: 'Batal', en: 'Cancel' },
 } as const;
 
 export type DictKey = keyof typeof DICT;

@@ -227,6 +227,21 @@ body {
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
+  /* Dropdown native: background popup-nya dikendalikan browser, jadi harus
+     diberi warna eksplisit di kedua tema. Tanpa ini teks putih tema gelap
+     jatuh di atas popup putih bawaan browser - tak terbaca. */
+  select.field {
+    color: var(--text-primary);
+  }
+  select.field option {
+    background: var(--glass-bg-strong);
+    color: var(--text-primary);
+  }
+  :root[data-theme='dark'] select.field option {
+    background: #16233c;
+    color: #eef2f9;
+  }
+
   .scroll-thin {
     scrollbar-width: thin;
     scrollbar-color: var(--glass-border) transparent;

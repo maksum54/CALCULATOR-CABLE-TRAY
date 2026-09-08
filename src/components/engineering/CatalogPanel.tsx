@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { ALL_ENTRIES, FAMILIES, isVerified } from '../../core/catalog';
-import { typeColor } from '../../core/colors';
 import { useAppStore } from '../../store/useAppStore';
 import { Badge, Button, GlassCard, SectionTitle, fmt, useT } from '../ui';
 
@@ -43,7 +42,7 @@ export function CatalogPanel() {
         <table className="w-full text-[12px]">
           <thead className="sticky top-0 z-10">
             <tr style={{ background: 'var(--glass-bg-strong)', backdropFilter: 'blur(14px)' }}>
-              {['', t('type'), t('family'), t('cores'), `${t('size')} (mm2)`, `${t('od')} (mm)`, `${t('weightKgKm')} (kg/km)`, `${t('ampacityAir')} (A)`, `${t('ampacityGround')} (A)`, 'R DC 20 (ohm/km)', 'Isc 1s (kA)', t('datasheet')].map((h) => (
+              {[t('family'), t('cores'), `${t('size')} (mm2)`, `${t('od')} (mm)`, `${t('weightKgKm')} (kg/km)`, `${t('ampacityAir')} (A)`, `${t('ampacityGround')} (A)`, 'R DC 20 (ohm/km)', 'Isc 1s (kA)', t('datasheet')].map((h) => (
                 <th key={h} className="border-b px-2 py-2 text-left text-[11px] font-semibold uppercase whitespace-nowrap" style={{ borderColor: 'var(--glass-border)', color: 'var(--text-muted)' }}>{h}</th>
               ))}
             </tr>
@@ -51,14 +50,10 @@ export function CatalogPanel() {
           <tbody>
             {rows.map((e) => (
               <tr key={e.id} title={e.note}>
-                <td className="border-b px-2 py-1" style={{ borderColor: 'var(--glass-border-soft)' }}>
-                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: typeColor(e.id) }} />
-                </td>
-                <td className="border-b px-2 py-1 font-medium whitespace-nowrap" style={{ borderColor: 'var(--glass-border-soft)' }}>
-                  {e.id}{' '}
+                <td className="border-b px-2 py-1 whitespace-nowrap" style={{ borderColor: 'var(--glass-border-soft)', color: 'var(--text-secondary)' }}>
+                  {e.family} &middot; {e.construction}
                   {isVerified(e) ? null : <Badge tone="warn">*</Badge>}
                 </td>
-                <td className="border-b px-2 py-1 whitespace-nowrap" style={{ borderColor: 'var(--glass-border-soft)', color: 'var(--text-secondary)' }}>{e.family} &middot; {e.construction}</td>
                 <td className="tabular border-b px-2 py-1 text-right" style={{ borderColor: 'var(--glass-border-soft)' }}>{e.cores}</td>
                 <td className="tabular border-b px-2 py-1 text-right" style={{ borderColor: 'var(--glass-border-soft)' }}>{e.sizeMm2}</td>
                 <td className="tabular border-b px-2 py-1 text-right font-semibold" style={{ borderColor: 'var(--glass-border-soft)' }}>{fmt(e.odMm, 1)}</td>

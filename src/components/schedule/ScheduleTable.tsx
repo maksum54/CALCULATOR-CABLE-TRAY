@@ -4,6 +4,7 @@ import { cableArea } from '../../core/traySizing';
 import { typeColor } from '../../core/colors';
 import { useAppStore } from '../../store/useAppStore';
 import { Badge, Button, GlassCard, SectionTitle, fmt, useT } from '../ui';
+import { ImportScheduleButton } from './ImportScheduleButton';
 import type { CableRun } from '../../core/types';
 
 /** Editable combined cable schedule - the app's input table. */
@@ -85,6 +86,7 @@ export function ScheduleTable() {
               ))}
             </select>
             <Button onClick={handleAdd} tone="accent" active>+ {t('addCable')}</Button>
+            <ImportScheduleButton />
             <Button onClick={loadSample}>{t('loadSample')}</Button>
             <Button onClick={clearSchedule} tone="danger">{t('clearAll')}</Button>
           </div>
