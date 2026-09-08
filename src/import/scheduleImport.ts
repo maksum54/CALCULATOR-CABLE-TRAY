@@ -41,6 +41,7 @@ export interface ImportedRow {
  */
 export type ImportWarningCode =
   | 'skippedImplausible'
+  | 'skippedSpare'
   | 'odMismatch'
   | 'odFallback'
   | 'odApprox'
@@ -68,6 +69,9 @@ const MAX_PLAUSIBLE_RUNS = 50;
 
 /** Grid teks hasil normalisasi file (baris x kolom), index 0-based. */
 type Grid = string[][];
+
+/** Peta KODE TIPE -> OD (mm) yang dibaca dari tabel OD di dalam workbook yang sama. */
+type OdLookup = Map<string, number>;
 
 /* ------------------------------------------------------------------ utils */
 
@@ -467,7 +471,7 @@ function normCategory(raw: string): string {
 
 /* ------------------------------------------------------------ parser inti */
 
-function parseGrid(grid: Grid, sheetName: string): ImportResult {
+function parseGrid(grid: Grid, sheetName: string, odLookup: OdLookup = new Map()): ImportResult {
   const band = findHeaderBand(grid);
   const col = mapColumns(grid, band);
 
@@ -490,6 +494,7 @@ function parseGrid(grid: Grid, sheetName: string): ImportResult {
   };
   let seq = 0;
   let skippedImplausible = 0;
+  let skippedSpare = 0;
 
   for (let r = band.end + 1; r < grid.length; r++) {
     const row = grid[r] ?? [];
@@ -504,7 +509,12 @@ function parseGrid(grid: Grid, sheetName: string): ImportResult {
     if (filled.length >= 5 && new Set(filled.map(norm)).size === 1) continue;
 
     const typeText = cell(col.type);
-    const odNum = parseNumber(cell(col.od));
+    // Kolom OD sering berupa formula lintas-sheet (INDEX/MATCH ke tabel OD di workbook yang
+    // sama). Program di luar Excel tidak menghitung formula dan file yang ditulis program
+    // juga tidak menyimpan nilai ter-cache, jadi selnya terbaca kosong. Karena itu tabel OD
+    // di dalam workbook dibaca sendiri dan dicocokkan lewat KODE TIPE - hasilnya sama persis
+    // dengan yang dihitung workbook user.
+    const odNum = parseNumber(cell(col.od)) ?? odLookup.get(lower(typeText));
 
     // Sebuah baris "jelas sirkuit" kalau punya nomor sirkuit DAN deskripsi yang berbeda satu
     // sama lain. Baris catatan di kaki tabel biasanya satu teks ter-merge, sehingga kedua
@@ -535,7 +545,15 @@ function parseGrid(grid: Grid, sheetName: string): ImportResult {
     // Jumlah run yang mustahil menandakan kolomnya bukan jumlah run: tabel konfigurasi
     // lebar tray (100, 150, 200 ... 1000) terbaca persis seperti ini dan menghasilkan
     // baris-baris kabel palsu. Lebih baik dibuang dan dilaporkan daripada ikut dihitung.
-    const runCount = Math.max(1, Math.round(parseNumber(cell(col.runs)) ?? 1));
+    // Sirkuit FUTURE / SPARE ditulis dengan jumlah run 0 - memang belum ada kabelnya, jadi
+    // tidak boleh ikut menambah lebar tray. Dilewati, tetapi dilaporkan supaya user tahu.
+    const rawRuns = col.runs >= 0 ? parseNumber(cell(col.runs)) : undefined;
+    if (rawRuns === 0) {
+      skippedSpare++;
+      continue;
+    }
+
+    const runCount = Math.max(1, Math.round(rawRuns ?? 1));
     if (runCount > MAX_PLAUSIBLE_RUNS) {
       skippedImplausible++;
       continue;
@@ -577,6 +595,7 @@ function parseGrid(grid: Grid, sheetName: string): ImportResult {
   if (skippedImplausible > 0) {
     warnings.push({ code: 'skippedImplausible', count: skippedImplausible, max: MAX_PLAUSIBLE_RUNS });
   }
+  if (skippedSpare > 0) warnings.push({ code: 'skippedSpare', count: skippedSpare });
   if (quality.odMismatch > 0) warnings.push({ code: 'odMismatch', count: quality.odMismatch });
   if (quality.odFallback > 0) warnings.push({ code: 'odFallback', count: quality.odFallback });
   if (quality.odApprox > 0) warnings.push({ code: 'odApprox', count: quality.odApprox });
@@ -599,28 +618,103 @@ function parseGrid(grid: Grid, sheetName: string): ImportResult {
 
 /* ------------------------------------------------------------- entry points */
 
+/* --------------------------------------------------- pemilihan sheet & tabel OD */
+
+/** Nama sheet yang memang berisi daftar kabel. */
+const SCHEDULE_SHEET = /cable\s*schedule|schedule\s*kabel|daftar\s*kabel|cable\s*list|schedule/i;
+
+/** Nama sheet yang jelas BUKAN daftar kabel, walau isinya panjang. */
+const NOT_SCHEDULE = /tray\s*calculation|perhitungan|kalkulasi|summary|rekap|cable\s*data|\bod\b|boq|notes|catatan|cover/i;
+
+/** Nama sheet yang berisi tabel diameter kabel. */
+const OD_SHEET = /cable\s*data|data\s*kabel|\bod\b|diameter/i;
+
+interface SheetGrid {
+  name: string;
+  grid: Grid;
+}
+
+/**
+ * Pilih sheet yang berisi daftar kabel.
+ *
+ * Sebelumnya sheet dipilih semata dari jumlah baris terbanyak. Pada workbook perhitungan
+ * cable tray, sheet TRAY CALCULATION (parameter + catatan + tabel konfigurasi) sering lebih
+ * panjang daripada CABLE SCHEDULE, sehingga yang terbaca justru teks penjelasan formula dan
+ * tabel lebar tray - bukan kabelnya. Urutannya sekarang: nama sheet dulu, lalu isi yang
+ * benar-benar terurai jadi kabel, baru jumlah baris sebagai pilihan terakhir.
+ */
+export function pickScheduleSheet(sheets: SheetGrid[], odLookup: OdLookup = new Map()): SheetGrid {
+  const byName = sheets.filter((s) => SCHEDULE_SHEET.test(s.name) && !NOT_SCHEDULE.test(s.name));
+  if (byName.length > 0) {
+    return byName.reduce((a, b) => (b.grid.length > a.grid.length ? b : a));
+  }
+
+  // Tidak ada nama yang meyakinkan: coba urai tiap sheet dan ambil yang menghasilkan kabel
+  // paling banyak dengan tipe yang benar-benar terpecahkan.
+  let best: { sheet: SheetGrid; resolved: number; total: number } | undefined;
+  for (const sheet of sheets) {
+    if (NOT_SCHEDULE.test(sheet.name)) continue;
+    try {
+      const parsed = parseGrid(sheet.grid, sheet.name, odLookup);
+      const resolved = parsed.rows.filter((r) => r.quality !== 'unresolved').length;
+      if (!best || resolved > best.resolved || (resolved === best.resolved && parsed.rows.length > best.total)) {
+        best = { sheet, resolved, total: parsed.rows.length };
+      }
+    } catch {
+      // Sheet ini bukan daftar kabel - lanjut ke berikutnya.
+    }
+  }
+  if (best && best.resolved > 0) return best.sheet;
+
+  return sheets.reduce((a, b) => (b.grid.length > a.grid.length ? b : a));
+}
+
+/**
+ * Baca tabel KODE TIPE -> OD dari workbook, kalau ada. Kolom OD pada sheet schedule biasanya
+ * formula lintas-sheet ke tabel ini, dan formula tidak ikut terbaca - jadi tabelnya dipetakan
+ * sendiri supaya diameter yang dipakai sama persis dengan yang dihitung workbook user.
+ */
+export function buildOdLookup(sheets: SheetGrid[]): OdLookup {
+  const lookup: OdLookup = new Map();
+  for (const { name, grid } of sheets) {
+    if (!OD_SHEET.test(name)) continue;
+    const band = findHeaderBand(grid);
+    const codeCol = band.labels.findIndex((l) => /kode|code/.test(l));
+    const odCol = band.labels.findIndex((l) => /\bod\b|diameter|dia\b/.test(l));
+    if (codeCol === -1 || odCol === -1) continue;
+
+    for (let r = band.end + 1; r < grid.length; r++) {
+      const code = lower(norm(grid[r]?.[codeCol] ?? ''));
+      const od = parseNumber(grid[r]?.[odCol] ?? '');
+      if (code && od && od > 0 && !lookup.has(code)) lookup.set(code, od);
+    }
+  }
+  return lookup;
+}
+
+/* ------------------------------------------------------------- entry points */
+
 export async function importScheduleFromExcel(file: File): Promise<ImportResult> {
   // ExcelJS ~250 kB - hanya dimuat kalau user benar-benar mengimpor file.
   const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(await file.arrayBuffer());
+  if (wb.worksheets.length === 0) throw new Error('Tidak ada sheet di file Excel ini.');
 
-  // Schedule biasanya di sheet dengan baris terbanyak.
-  let sheet = wb.worksheets[0];
-  for (const ws of wb.worksheets) if (ws.rowCount > (sheet?.rowCount ?? 0)) sheet = ws;
-  if (!sheet) throw new Error('Tidak ada sheet di file Excel ini.');
-
-  const grid: Grid = [];
-  for (let r = 1; r <= sheet.rowCount; r++) {
-    const row = sheet.getRow(r);
-    const cells: string[] = [];
-    for (let c = 1; c <= sheet.columnCount; c++) {
-      cells[c - 1] = String(row.getCell(c).text ?? '');
+  const sheets: SheetGrid[] = wb.worksheets.map((ws) => {
+    const grid: Grid = [];
+    for (let r = 1; r <= ws.rowCount; r++) {
+      const row = ws.getRow(r);
+      const cells: string[] = [];
+      for (let c = 1; c <= ws.columnCount; c++) cells[c - 1] = String(row.getCell(c).text ?? '');
+      grid[r - 1] = cells;
     }
-    grid[r - 1] = cells;
-  }
+    return { name: ws.name, grid };
+  });
 
-  return parseGrid(grid, sheet.name);
+  const odLookup = buildOdLookup(sheets);
+  const chosen = pickScheduleSheet(sheets, odLookup);
+  return parseGrid(chosen.grid, chosen.name, odLookup);
 }
 
 /** CSV: satu baris = satu record; pemisah koma atau titik-koma; dukung kutip. */

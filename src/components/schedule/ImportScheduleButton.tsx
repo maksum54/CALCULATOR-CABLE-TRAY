@@ -262,6 +262,8 @@ function warningText(t: ReturnType<typeof useT>, w: ImportWarning): string {
   switch (w.code) {
     case 'skippedImplausible':
       return t('importWarnSkipped', { n: w.count, max: w.max ?? 0 });
+    case 'skippedSpare':
+      return t('importWarnSpare', { n: w.count });
     case 'odMismatch':
       return t('importWarnOdMismatch', { n: w.count });
     case 'odFallback':

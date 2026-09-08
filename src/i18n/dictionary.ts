@@ -231,6 +231,10 @@ export const DICT = {
     id: '{n} baris dilewati: jumlah run di atas {max} - kemungkinan tabel konfigurasi / lebar tray, bukan daftar kabel. Periksa kolom yang terbaca di atas.',
     en: '{n} row(s) skipped: run count above {max} - most likely a configuration / tray-width table, not a cable list. Check the detected columns above.',
   },
+  importWarnSpare: {
+    id: '{n} sirkuit FUTURE / SPARE dilewati karena jumlah run-nya 0 - belum ada kabel, jadi tidak menambah lebar tray.',
+    en: '{n} FUTURE / SPARE circuit(s) skipped: their run count is 0, so there is no cable yet and no tray width to add.',
+  },
   importWarnOdMismatch: {
     id: '{n} baris: OD di file berbeda dari OD katalog untuk tipe yang tertulis. Perhitungan memakai OD katalog.',
     en: '{n} row(s): the OD in the file disagrees with the catalogue OD for the type written there. The calculation uses the catalogue OD.',
