@@ -74,12 +74,22 @@ export function groupingFactor(circuits: number, layers: number, spaced: boolean
   return nearestKey(table[layerKey], Math.max(1, circuits));
 }
 
-/** Design current from the connected load; cores >= 4 is treated as a three-phase circuit. */
-export function designCurrent(loadKw: number | undefined, cores: number, powerFactor = 0.85): number {
+/**
+ * Design current from the connected load. Four cores or more is a three-phase circuit at the
+ * line-to-line voltage; three or fewer is single phase at the phase voltage (V / sqrt 3).
+ * Voltage and power factor are design parameters, not constants - 380 V / 0.85 by default.
+ */
+export function designCurrent(
+  loadKw: number | undefined,
+  cores: number,
+  voltageV = 380,
+  powerFactor = 0.85,
+): number {
   if (!loadKw || loadKw <= 0) return 0;
+  const watts = loadKw * 1000;
   return cores >= 4
-    ? (loadKw * 1000) / (Math.sqrt(3) * 400 * powerFactor)
-    : (loadKw * 1000) / (230 * powerFactor);
+    ? watts / (Math.sqrt(3) * voltageV * powerFactor)
+    : watts / ((voltageV / Math.sqrt(3)) * powerFactor);
 }
 
 /**
@@ -157,11 +167,14 @@ export function calculateDerating(
     avgTemp = tf;
     const base = ampacityOf(entry) ?? 0;
     const derated = base * gf * tf;
-    const design = designCurrent(run.loadKw, entry.cores);
+    const design = designCurrent(run.loadKw, entry.cores, params.systemVoltageV, params.powerFactor);
+    // Parallel runs share the load. Comparing the whole circuit current against a single
+    // cable's ampacity is what made a correctly sized 4-run feeder read as 293 % overloaded.
+    const perRun = design / Math.max(1, run.runs);
     for (let i = 1; i <= run.runs; i += 1) {
       const spot = byPosition.get(`${run.id}#${i}`)?.[0];
       const enc = spot ? enclosure(spot, placed) : 0.5;
-      const util = derated > 0 ? design / derated : 0;
+      const util = derated > 0 ? perRun / derated : 0;
       perCable.push({
         runId: run.id,
         label: run.runs > 1 ? `${run.circuit} (${i}/${run.runs})` : run.circuit,
@@ -169,6 +182,8 @@ export function calculateDerating(
         baseAmpacity: base,
         deratedAmpacity: derated,
         designCurrentA: design,
+        currentPerRunA: perRun,
+        runs: run.runs,
         utilisation: util,
         loadKnown: design > 0,
         thermalIndex: thermalIndexOf(util, enc, design > 0),

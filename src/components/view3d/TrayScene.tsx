@@ -54,11 +54,11 @@ export function TrayScene(props: SceneProps) {
 function Lighting({ lengthM }: { lengthM: number }) {
   return (
     <>
-      <ambientLight intensity={0.42} />
-      <hemisphereLight args={['#cfe0ff', '#20242e', 0.45]} />
+      <ambientLight intensity={0.72} />
+      <hemisphereLight args={['#ffffff', '#c8d0dc', 0.65]} />
       <directionalLight
         position={[3, 6, 4]}
-        intensity={1.1}
+        intensity={1.35}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-lengthM}
@@ -66,9 +66,8 @@ function Lighting({ lengthM }: { lengthM: number }) {
         shadow-camera-top={lengthM}
         shadow-camera-bottom={-lengthM}
       />
-      {/* Rim lights, scaled to the run so a long tray is not blown out at one end. */}
-      <pointLight position={[-lengthM * 0.4, 1.6, -lengthM / 3]} intensity={lengthM * 0.5} color="#7dd3fc" distance={lengthM * 2.5} />
-      <pointLight position={[lengthM * 0.4, 1.2, lengthM / 3]} intensity={lengthM * 0.4} color="#c4b5fd" distance={lengthM * 2.5} />
+      {/* Fill dari sisi berlawanan supaya bagian bawah tray tidak jadi siluet hitam. */}
+      <directionalLight position={[-3, 2.5, -4]} intensity={0.45} color="#ffffff" />
     </>
   );
 }
@@ -98,7 +97,7 @@ function TrayShell({ trayWidthMm, trayHeightMm, trayType, lengthM, explode, show
           position={[side * (w / 2 + RAIL / 2 + railShift), h / 2 - RAIL / 2, 0]}
         >
           <boxGeometry args={[RAIL, h, lengthM]} />
-          <meshStandardMaterial color="#9aa7b8" metalness={0.85} roughness={0.32} />
+          <meshStandardMaterial color="#b9c4d2" metalness={0.35} roughness={0.42} />
         </mesh>
       ))}
 
@@ -107,15 +106,15 @@ function TrayShell({ trayWidthMm, trayHeightMm, trayType, lengthM, explode, show
         rungs.map((z) => (
           <mesh key={z} castShadow receiveShadow position={[0, -RAIL / 2, z]}>
             <boxGeometry args={[w + 2 * RAIL, RAIL, 0.05]} />
-            <meshStandardMaterial color="#7d8a9c" metalness={0.85} roughness={0.35} />
+            <meshStandardMaterial color="#a6b2c2" metalness={0.35} roughness={0.45} />
           </mesh>
         ))
       ) : (
         <mesh castShadow receiveShadow position={[0, -RAIL / 2, 0]}>
           <boxGeometry args={[w + 2 * RAIL, RAIL, lengthM]} />
           <meshStandardMaterial
-            color="#7d8a9c"
-            metalness={0.82}
+            color="#a6b2c2"
+            metalness={0.35}
             roughness={trayType === 'perforated' ? 0.5 : 0.33}
           />
         </mesh>
@@ -126,7 +125,7 @@ function TrayShell({ trayWidthMm, trayHeightMm, trayType, lengthM, explode, show
         [-1, 1].map((side) => (
           <mesh key={`ln${side}`} castShadow position={[side * (w / 2 + RAIL / 2 + railShift), -RAIL / 2, 0]}>
             <boxGeometry args={[RAIL, RAIL, lengthM]} />
-            <meshStandardMaterial color="#7d8a9c" metalness={0.85} roughness={0.35} />
+            <meshStandardMaterial color="#a6b2c2" metalness={0.35} roughness={0.45} />
           </mesh>
         ))}
 
@@ -134,9 +133,9 @@ function TrayShell({ trayWidthMm, trayHeightMm, trayType, lengthM, explode, show
         <mesh castShadow position={[0, h + RAIL / 2 + coverLift, 0]}>
           <boxGeometry args={[w + 2 * RAIL + 0.004, RAIL, lengthM]} />
           <meshStandardMaterial
-            color="#b6c2d2"
-            metalness={0.9}
-            roughness={0.22}
+            color="#cdd6e2"
+            metalness={0.4}
+            roughness={0.3}
             transparent
             opacity={explode > 0.05 ? 0.75 : 1}
           />
@@ -198,8 +197,8 @@ function CableBundle({
 function Floor({ lengthM, width, depth }: { lengthM: number; width: number; depth: number }) {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -depth - 1.2, 0]} receiveShadow>
-      <planeGeometry args={[width * 3, lengthM * 1.5]} />
-      <meshStandardMaterial color="#141a26" roughness={0.95} metalness={0} />
+      <planeGeometry args={[Math.max(width, lengthM) * 8, lengthM * 8]} />
+      <meshStandardMaterial color="#dfe4ec" roughness={0.95} metalness={0} />
     </mesh>
   );
 }
@@ -231,12 +230,12 @@ function Hangers({
         <group key={z} position={[0, 0, z]}>
           <mesh position={[0, -heightM / 2 - 0.02, 0]} castShadow>
             <boxGeometry args={[total + 0.2, 0.03, 0.04]} />
-            <meshStandardMaterial color="#8a97a8" metalness={0.85} roughness={0.4} />
+            <meshStandardMaterial color="#aab5c4" metalness={0.85} roughness={0.4} />
           </mesh>
           {[-1, 1].map((side) => (
             <mesh key={side} position={[(side * (total + 0.16)) / 2, 0.3, 0]} castShadow>
               <cylinderGeometry args={[0.006, 0.006, 0.72, 10]} />
-              <meshStandardMaterial color="#9aa7b8" metalness={0.9} roughness={0.35} />
+              <meshStandardMaterial color="#b9c4d2" metalness={0.4} roughness={0.4} />
             </mesh>
           ))}
         </group>

@@ -74,6 +74,10 @@ export interface TrayParams {
   supportSpanM: number;
   /** Site ambient temperature (degC) for the derating check. */
   ambientTempC: number;
+  /** Nominal line-to-line system voltage (V) used to turn kW into a design current. */
+  systemVoltageV: number;
+  /** Power factor used for the same conversion. */
+  powerFactor: number;
   /** Cable tray route length (m), used for BOQ and pulling tension. */
   routeLengthM: number;
   coverInstalled: boolean;
@@ -172,7 +176,12 @@ export interface DeratedCable {
   typeCode: string;
   baseAmpacity: number;
   deratedAmpacity: number;
+  /** Total design current of the circuit (A), before it splits between parallel runs. */
   designCurrentA: number;
+  /** Design current carried by THIS run (A) = total / number of parallel runs. */
+  currentPerRunA: number;
+  /** Parallel runs the circuit is split over. */
+  runs: number;
   utilisation: number;
   /** False when the circuit carries no load figure, so utilisation cannot be judged. */
   loadKnown: boolean;

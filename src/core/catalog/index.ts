@@ -1,15 +1,16 @@
 import type { CatalogEntry } from '../types';
 import { seedColors } from '../colors';
 import { KMI_CATALOG } from './kmi';
+import { N2XY_CATALOG } from './n2xy';
 import { PROJECT_CATALOG } from './project';
 
 // Give the project's own cable types the clearest, best separated colours.
 seedColors(PROJECT_CATALOG.map((e) => e.id));
 
-export { KMI_CATALOG, PROJECT_CATALOG };
+export { KMI_CATALOG, N2XY_CATALOG, PROJECT_CATALOG };
 
 /** Every catalogue entry the app knows about; project entries first so they win on lookup. */
-export const ALL_ENTRIES: CatalogEntry[] = [...PROJECT_CATALOG, ...KMI_CATALOG];
+export const ALL_ENTRIES: CatalogEntry[] = [...PROJECT_CATALOG, ...N2XY_CATALOG, ...KMI_CATALOG];
 
 const BY_ID = new Map(ALL_ENTRIES.map((e) => [e.id, e]));
 

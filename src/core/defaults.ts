@@ -13,6 +13,9 @@ export const DEFAULT_PARAMS: TrayParams = {
   trayType: 'ladder',
   supportSpanM: 1.5,
   ambientTempC: 35,
+  // 380 V / 0.85 is the usual Indonesian LV convention (PUIL); both are editable.
+  systemVoltageV: 380,
+  powerFactor: 0.85,
   routeLengthM: 100,
   coverInstalled: false,
 };

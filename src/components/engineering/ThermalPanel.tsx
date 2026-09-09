@@ -72,7 +72,7 @@ export function ThermalPanel() {
           <table className="w-full text-[12px]">
             <thead className="sticky top-0 z-10">
               <tr style={{ background: 'var(--glass-bg-strong)', backdropFilter: 'blur(14px)' }}>
-                {[t('circuit'), t('type'), `${t('baseAmpacity')} (A)`, `${t('deratedAmpacity')} (A)`, `${t('designCurrent')} (A)`, t('utilisation'), t('heatmap')].map((h) => (
+                {[t('circuit'), t('type'), `${t('baseAmpacity')} (A)`, `${t('deratedAmpacity')} (A)`, `${t('designCurrent')} (A)`, `${t('currentPerRun')} (A)`, t('utilisation'), t('heatmap')].map((h) => (
                   <th key={h} className="border-b px-2 py-2 text-left text-[11px] font-semibold uppercase whitespace-nowrap" style={{ borderColor: 'var(--glass-border)', color: 'var(--text-muted)' }}>{h}</th>
                 ))}
               </tr>
@@ -85,6 +85,10 @@ export function ThermalPanel() {
                   <td className="tabular border-b px-2 py-1 text-right" style={{ borderColor: 'var(--glass-border-soft)' }}>{c.baseAmpacity ? fmt(c.baseAmpacity, 0) : '-'}</td>
                   <td className="tabular border-b px-2 py-1 text-right" style={{ borderColor: 'var(--glass-border-soft)' }}>{c.deratedAmpacity ? fmt(c.deratedAmpacity, 1) : '-'}</td>
                   <td className="tabular border-b px-2 py-1 text-right" style={{ borderColor: 'var(--glass-border-soft)' }}>{c.designCurrentA ? fmt(c.designCurrentA, 1) : '-'}</td>
+                  {/* Yang dibandingkan dengan KHA adalah arus per run, bukan arus total sirkuit. */}
+                  <td className="tabular border-b px-2 py-1 text-right" style={{ borderColor: 'var(--glass-border-soft)' }}>
+                    {c.designCurrentA ? `${fmt(c.currentPerRunA, 1)}${c.runs > 1 ? ` (/${c.runs})` : ''}` : '-'}
+                  </td>
                   <td
                     className="tabular border-b px-2 py-1 text-right font-semibold"
                     style={{

@@ -104,6 +104,17 @@ export function ParamsPanel() {
           />
           <NumberField label={t('routeLength')} value={params.routeLengthM} onChange={(v) => setParam('routeLengthM', v)} step={5} min={1} unit="m" />
           <NumberField label={t('ambientTemp')} value={params.ambientTempC} onChange={(v) => setParam('ambientTempC', v)} step={1} min={10} max={80} unit="deg C" />
+          <NumberField
+            label={t('systemVoltage')}
+            value={params.systemVoltageV}
+            onChange={(v) => setParam('systemVoltageV', v)}
+            step={10}
+            min={100}
+            max={1000}
+            unit="V"
+            hint={lang === 'id' ? '3 fasa antar-fasa; 1 fasa memakai V / akar 3' : 'three-phase line-to-line; single phase uses V / sqrt 3'}
+          />
+          <NumberField label={t('powerFactor')} value={params.powerFactor} onChange={(v) => setParam('powerFactor', v)} step={0.05} min={0.5} max={1} unit="cos phi" />
           <Toggle checked={params.coverInstalled} onChange={(v) => setParam('coverInstalled', v)} label={t('coverInstalled')} />
         </div>
       </GlassCard>

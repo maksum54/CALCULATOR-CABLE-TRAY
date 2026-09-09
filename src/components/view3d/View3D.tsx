@@ -9,6 +9,9 @@ import { useT } from '../ui/useT';
 import { FlyThrough, SceneSnapshot, TrayScene } from './TrayScene';
 
 /** The 3D tab: canvas plus the view controls that drive the animations. */
+/** Latar scene 3D - putih lembut, sedikit dingin supaya tidak menyilaukan. */
+const SCENE_BG = '#eef1f6';
+
 export function View3D() {
   const t = useT();
   const params = useAppStore((s) => s.params);
@@ -65,8 +68,10 @@ export function View3D() {
             gl={{ antialias: true, preserveDrawingBuffer: true }}
             style={{ borderRadius: '0.9rem' }}
           >
-            <color attach="background" args={['#0a0f1a']} />
-            <fog attach="fog" args={['#0a0f1a', lengthM * 1.6, lengthM * 6]} />
+            {/* Latar studio putih lembut: tray abu-abu gelap dan kabel berwarna jauh lebih
+                terbaca di atasnya daripada di atas latar hampir hitam sebelumnya. */}
+            <color attach="background" args={[SCENE_BG]} />
+            <fog attach="fog" args={[SCENE_BG, lengthM * 2.2, lengthM * 7]} />
             <Suspense fallback={null}>
               <TrayScene
                 trays={trays}
