@@ -6,6 +6,7 @@ import { calculateSizing, alternativeConfigurations } from '../traySizing';
 import { arrangeCables, DEFAULT_ARRANGE_OPTIONS } from '../arranger';
 import { calculateSupport, calculateWeight } from '../support';
 import { DEFAULT_PARAMS } from '../defaults';
+import { thermalIndexOf } from '../derating';
 import { REFERENCE_SCHEDULE } from '../../data/referenceSchedule';
 
 describe('tray sizing matches the reference workbook', () => {
@@ -87,5 +88,37 @@ describe('weight and support', () => {
     const support = calculateSupport(weight, DEFAULT_PARAMS, 2);
     expect(support.allowableDeflectionMm).toBeCloseTo(1500 / 180, 6);
     expect(typeof support.deflectionPass).toBe('boolean');
+  });
+});
+
+describe('thermal ranking', () => {
+  // Aturan yang harus dipegang kolom heat map: pembebanan menentukan tingginya, posisi hanya
+  // boleh menaikkan. Versi pertama merata-ratakan 0.55 x posisi + 0.45 x pembebanan, sehingga
+  // dua sirkuit identik tampil berbeda dan kabel yang sudah lewat batas bisa tampil lebih
+  // dingin daripada kabel yang aman.
+  it('gives two identically loaded circuits the same reading regardless of position', () => {
+    expect(thermalIndexOf(1.05, 1, true)).toBe(thermalIndexOf(1.05, 0, true));
+  });
+
+  it('pegs anything at or over its derated ampacity at full', () => {
+    expect(thermalIndexOf(1.0, 0, true)).toBe(1);
+    expect(thermalIndexOf(1.05, 0, true)).toBe(1);
+    expect(thermalIndexOf(2.0, 0, true)).toBe(1);
+  });
+
+  it('never ranks an overloaded cable cooler than a safe one', () => {
+    const overloadedAtTheEdge = thermalIndexOf(1.05, 0.1, true);
+    const safeButBuried = thermalIndexOf(0.4, 1, true);
+    expect(overloadedAtTheEdge).toBeGreaterThan(safeButBuried);
+  });
+
+  it('lets enclosure raise the reading but never lower it', () => {
+    expect(thermalIndexOf(0.5, 1, true)).toBeGreaterThan(thermalIndexOf(0.5, 0, true));
+    expect(thermalIndexOf(0.5, 0, true)).toBeCloseTo(0.5, 6);
+  });
+
+  it('falls back to a muted position-only value when the load is unknown', () => {
+    expect(thermalIndexOf(0, 1, false)).toBeLessThan(0.5);
+    expect(thermalIndexOf(0, 0, false)).toBe(0);
   });
 });

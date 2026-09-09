@@ -83,6 +83,15 @@ export const DICT = {
   deratedAmpacity: { id: 'KHA terkoreksi', en: 'Derated ampacity' },
   designCurrent: { id: 'Arus desain', en: 'Design current' },
   utilisation: { id: 'Utilisasi', en: 'Utilisation' },
+  rowOverload: {
+    id: 'melebihi KHA terkoreksi',
+    en: 'over the derated ampacity',
+  },
+  rowNearLimit: {
+    id: 'mendekati batas (>= 80 %)',
+    en: 'near the limit (>= 80 %)',
+  },
+  noLoadData: { id: 'tanpa data beban', en: 'no load data' },
   worstUtilisation: { id: 'Utilisasi tertinggi antar sirkuit', en: 'Highest utilisation across circuits' },
   heatmap: { id: 'Heatmap termal', en: 'Thermal heat map' },
   heatmapNote: {

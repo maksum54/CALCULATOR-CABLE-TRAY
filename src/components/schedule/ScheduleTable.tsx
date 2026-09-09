@@ -3,6 +3,7 @@ import { ALL_ENTRIES, findEntry, isVerified } from '../../core/catalog';
 import { cableArea } from '../../core/traySizing';
 import { typeColor } from '../../core/colors';
 import { useAppStore } from '../../store/useAppStore';
+import { useCalculations } from '../../store/useCalculations';
 import { Badge, Button, GlassCard, SectionTitle } from '../ui';
 import { useT } from '../ui/useT';
 import { fmt } from '../ui/format';
@@ -24,6 +25,20 @@ export function ScheduleTable() {
   const clearSchedule = useAppStore((s) => s.clearSchedule);
 
   const [query, setQuery] = useState('');
+  const { derating } = useCalculations();
+
+  /**
+   * Utilisasi tertinggi per baris schedule. Satu baris bisa berisi beberapa run paralel dan
+   * tiap run diperiksa sendiri, jadi yang dipakai menandai baris adalah yang terburuk.
+   */
+  const worstUtilByRun = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of derating.perCable) {
+      if (!c.loadKnown) continue;
+      m.set(c.runId, Math.max(m.get(c.runId) ?? 0, c.utilisation));
+    }
+    return m;
+  }, [derating]);
 
   const panels = useMemo(() => [...new Set(schedule.map((r) => r.panel))], [schedule]);
   const rows = useMemo(() => {
@@ -101,7 +116,7 @@ export function ScheduleTable() {
         <table className="w-full border-separate border-spacing-0 text-[12px]">
           <thead className="sticky top-0 z-10">
             <tr style={{ background: 'var(--glass-bg-strong)', backdropFilter: 'blur(14px)' }}>
-              {[t('no'), t('panel'), t('circuit'), t('category'), `${t('load')} (kW)`, t('cableDescription'), t('type'), t('qtyRuns'), `${t('od')} (mm)`, `${t('totalWidthCol')} (mm)`, `${t('totalAreaCol')} (mm2)`, ''].map((h, i) => (
+              {[t('no'), t('panel'), t('circuit'), t('category'), `${t('load')} (kW)`, t('cableDescription'), t('type'), t('qtyRuns'), `${t('od')} (mm)`, `${t('totalWidthCol')} (mm)`, `${t('totalAreaCol')} (mm2)`, t('utilisation'), ''].map((h, i) => (
                 <th
                   key={i}
                   className="border-b px-2 py-2 text-left text-[11px] font-semibold whitespace-nowrap uppercase"
@@ -116,12 +131,14 @@ export function ScheduleTable() {
             {rows.map((r, i) => {
               const e = findEntry(r.typeCode);
               const selected = selectedRunId === r.id;
+              const util = worstUtilByRun.get(r.id);
               return (
                 <tr
                   key={r.id}
                   onClick={() => setSelectedRun(selected ? null : r.id)}
                   className="press cursor-pointer"
-                  style={{ background: selected ? 'var(--accent-soft)' : 'transparent' }}
+                  style={{ background: rowBackground(selected, worstUtilByRun.get(r.id)) }}
+                  title={overloadTitle(worstUtilByRun.get(r.id))}
                 >
                   <td className="tabular border-b px-2 py-1" style={{ borderColor: 'var(--glass-border-soft)', color: 'var(--text-muted)' }}>{i + 1}</td>
                   <td className="border-b px-2 py-1" style={{ borderColor: 'var(--glass-border-soft)' }}>
@@ -171,6 +188,9 @@ export function ScheduleTable() {
                   </td>
                   <td className="tabular border-b px-2 py-1 text-right" style={{ borderColor: 'var(--glass-border-soft)' }}>{e ? fmt(r.runs * e.odMm, 1) : '-'}</td>
                   <td className="tabular border-b px-2 py-1 text-right" style={{ borderColor: 'var(--glass-border-soft)' }}>{e ? fmt(r.runs * cableArea(e.odMm), 1) : '-'}</td>
+                  <td className="tabular border-b px-2 py-1 text-right font-semibold" style={{ borderColor: 'var(--glass-border-soft)', color: utilColor(util) }}>
+                    {util === undefined ? '-' : `${(util * 100).toFixed(0)} %`}
+                  </td>
                   <td className="border-b px-2 py-1 text-right" style={{ borderColor: 'var(--glass-border-soft)' }}>
                     <button
                       className="press rounded-lg px-2 py-1 text-[11px]"
@@ -200,7 +220,43 @@ export function ScheduleTable() {
       <div className="flex items-center gap-2 px-4 py-2 text-[11px]" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--glass-border-soft)' }}>
         <Badge tone="warn">*</Badge>
         {t('dataSourceNote')}
+        <span className="mx-1">&middot;</span>
+        <span style={{ color: 'var(--danger)' }}>&#9632;</span> {t('rowOverload')}
+        <span className="mx-1">&middot;</span>
+        <span style={{ color: 'var(--warn)' }}>&#9632;</span> {t('rowNearLimit')}
       </div>
     </GlassCard>
   );
+}
+
+function utilColor(utilisation: number | undefined): string {
+  if (utilisation === undefined) return 'var(--text-muted)';
+  if (utilisation > OVERLOAD) return 'var(--danger)';
+  if (utilisation >= NEAR_LIMIT) return 'var(--warn)';
+  return 'var(--ok)';
+}
+
+/** Ambang penandaan: di atas 100 % kabel melebihi KHA terkoreksi, 80 - 100 % sudah mepet. */
+const OVERLOAD = 1;
+const NEAR_LIMIT = 0.8;
+
+/**
+ * Warna latar baris. Baris yang melebihi KHA terkoreksi diberi latar merah supaya terlihat
+ * langsung dari daftar tanpa harus membuka tab Termal; yang mendekati batas diberi kuning.
+ * Baris terpilih tetap menang agar pilihan user tidak hilang.
+ */
+function rowBackground(selected: boolean, utilisation: number | undefined): string {
+  if (selected) return 'var(--accent-soft)';
+  if (utilisation === undefined) return 'transparent';
+  if (utilisation > OVERLOAD) return 'var(--row-danger)';
+  if (utilisation >= NEAR_LIMIT) return 'var(--row-warn)';
+  return 'transparent';
+}
+
+function overloadTitle(utilisation: number | undefined): string | undefined {
+  if (utilisation === undefined || utilisation < NEAR_LIMIT) return undefined;
+  const pctText = `${(utilisation * 100).toFixed(0)} %`;
+  return utilisation > OVERLOAD
+    ? `Arus desain ${pctText} dari KHA terkoreksi - melebihi batas. Perbesar ukuran kabel, renggangkan penataan, atau pecah tray.`
+    : `Arus desain ${pctText} dari KHA terkoreksi - mendekati batas.`;
 }

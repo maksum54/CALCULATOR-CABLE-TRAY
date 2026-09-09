@@ -83,6 +83,26 @@ export function designCurrent(loadKw: number | undefined, cores: number, powerFa
 }
 
 /**
+ * Thermal ranking for the heat map, 0 (cool) .. 1 (hot).
+ *
+ * Loading has to dominate, and it must not be capped below full. The first version averaged
+ * 0.55 x enclosure + 0.45 x min(utilisation, 1), which had two consequences an engineer cannot
+ * live with: two identical circuits read differently purely because of where they sat in the
+ * tray, and - worse - a cable at 105 % of its derated ampacity out at the tray edge scored
+ * 0.56 while a cable at 40 % buried mid-stack scored 0.73, so the column could show an
+ * overloaded cable as cooler than a safe one and hide the overload entirely.
+ *
+ * Utilisation now sets the level and enclosure can only push it up, never down; anything at or
+ * above its derated ampacity pegs at full red. Where the circuit carries no load figure there
+ * is nothing to rank, so the value falls back to a muted position-only indication and the table
+ * shows the utilisation as unknown rather than as zero.
+ */
+export function thermalIndexOf(utilisation: number, enclosure: number, loadKnown: boolean): number {
+  if (!loadKnown) return 0.35 * enclosure;
+  return Math.min(1, utilisation * (1 + 0.2 * enclosure));
+}
+
+/**
  * How enclosed a cable is by its neighbours, 0 (open edge) .. 1 (buried in the middle of a
  * stack). Neighbours are weighted by centre distance relative to the two cable radii.
  */
@@ -150,7 +170,8 @@ export function calculateDerating(
         deratedAmpacity: derated,
         designCurrentA: design,
         utilisation: util,
-        thermalIndex: Math.min(1, 0.55 * enc + 0.45 * Math.min(util, 1)),
+        loadKnown: design > 0,
+        thermalIndex: thermalIndexOf(util, enc, design > 0),
       });
     }
   }

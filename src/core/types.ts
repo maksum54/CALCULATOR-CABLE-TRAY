@@ -174,6 +174,8 @@ export interface DeratedCable {
   deratedAmpacity: number;
   designCurrentA: number;
   utilisation: number;
+  /** False when the circuit carries no load figure, so utilisation cannot be judged. */
+  loadKnown: boolean;
   /** 0 (cool) .. 1 (hot) - drives the cross-section heat map. */
   thermalIndex: number;
 }

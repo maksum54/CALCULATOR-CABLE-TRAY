@@ -85,12 +85,26 @@ export function ThermalPanel() {
                   <td className="tabular border-b px-2 py-1 text-right" style={{ borderColor: 'var(--glass-border-soft)' }}>{c.baseAmpacity ? fmt(c.baseAmpacity, 0) : '-'}</td>
                   <td className="tabular border-b px-2 py-1 text-right" style={{ borderColor: 'var(--glass-border-soft)' }}>{c.deratedAmpacity ? fmt(c.deratedAmpacity, 1) : '-'}</td>
                   <td className="tabular border-b px-2 py-1 text-right" style={{ borderColor: 'var(--glass-border-soft)' }}>{c.designCurrentA ? fmt(c.designCurrentA, 1) : '-'}</td>
-                  <td className="tabular border-b px-2 py-1 text-right font-semibold" style={{ borderColor: 'var(--glass-border-soft)', color: c.utilisation > 1 ? 'var(--danger)' : c.utilisation > 0.8 ? 'var(--warn)' : 'var(--ok)' }}>
-                    {c.deratedAmpacity ? pct(c.utilisation, 0) : '-'}
+                  <td
+                    className="tabular border-b px-2 py-1 text-right font-semibold"
+                    style={{
+                      borderColor: 'var(--glass-border-soft)',
+                      color: !c.loadKnown ? 'var(--text-muted)' : c.utilisation > 1 ? 'var(--danger)' : c.utilisation > 0.8 ? 'var(--warn)' : 'var(--ok)',
+                    }}
+                  >
+                    {c.loadKnown && c.deratedAmpacity ? pct(c.utilisation, 0) : '-'}
                   </td>
                   <td className="border-b px-2 py-1" style={{ borderColor: 'var(--glass-border-soft)' }}>
-                    <div className="h-2.5 w-16 rounded-full" style={{ background: 'var(--glass-border)' }}>
-                      <div className="h-full rounded-full" style={{ width: `${c.thermalIndex * 100}%`, background: heatColor(c.thermalIndex) }} />
+                    {/* Tanpa data beban tidak ada yang bisa diperingkat secara termal - batangnya
+                        dibiarkan kosong daripada menampilkan nilai yang terlihat aman. */}
+                    <div
+                      className="h-2.5 w-16 rounded-full"
+                      style={{ background: 'var(--glass-border)' }}
+                      title={c.loadKnown ? undefined : t('noLoadData')}
+                    >
+                      {c.loadKnown && (
+                        <div className="h-full rounded-full" style={{ width: `${c.thermalIndex * 100}%`, background: heatColor(c.thermalIndex) }} />
+                      )}
                     </div>
                   </td>
                 </tr>
