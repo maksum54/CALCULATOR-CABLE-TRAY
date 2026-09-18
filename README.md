@@ -107,7 +107,11 @@ templates differ from office to office, so the parser does not assume a fixed la
    dropped.
 
 The preview dialog states which sheet, header row and TYPE / OD columns were used, so the
-mapping can be checked before the rows are applied. `src/import/__tests__/` holds three real
+mapping can be checked before the rows are applied. Applying a schedule reopens the panel
+filter, and the store keeps that filter consistent with the schedule under it on every edit:
+a filter naming a panel that no longer exists would otherwise hide every row in the app, while
+the dropdown - a `<select>` whose value matches none of its options - falls back to displaying
+"All panels", so the screen would read "all panels, zero cables". `src/import/__tests__/` holds three real
 workbooks as regression fixtures, deliberately different from one another: a panel schedule
 (`DB-RMW-L0-LP`, TYPE in column D, OD in column AO, 30+ fixture columns in between), and two
 cable tray calculation workbooks whose schedules sit in different columns
