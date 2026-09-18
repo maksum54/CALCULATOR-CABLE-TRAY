@@ -179,7 +179,15 @@ export function matchCatalog(text: string, odHint?: number): CatalogMatch {
   const t = norm(text);
 
   // 1) Id katalog ditulis apa adanya ("NYY-3C-4", "3C-4").
-  const direct = ALL_ENTRIES.find((e) => t.toLowerCase().includes(e.id.toLowerCase()));
+  //
+  // Id yang PALING PANJANG menang, bukan yang pertama ditemukan. Id proyek ("3C-4") adalah
+  // potongan dari id KMI ("NYY-3C-4"), dan karena katalog proyek diletakkan lebih dulu di
+  // ALL_ENTRIES, pencarian "yang pertama cocok" mengubah setiap "NYY-3C-4" di file menjadi
+  // "3C-4" - tipe lain, diameter lain, dan lebar tray yang ikut bergeser tanpa satu pun
+  // peringatan. Mencocokkan id terpanjang membuat tulisan user yang lebih spesifik dihormati.
+  const direct = ALL_ENTRIES.filter((e) => lower(t).includes(e.id.toLowerCase())).sort(
+    (a, b) => b.id.length - a.id.length,
+  )[0];
   if (direct) return { typeCode: direct.id, quality: 'exact' };
 
   // 2) Urai jumlah core dan luas penampang, saring dengan family bila disebut.

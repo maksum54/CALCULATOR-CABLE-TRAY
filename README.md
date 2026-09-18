@@ -19,7 +19,7 @@ npm run build
 
 | Area | Detail |
 |---|---|
-| Input | Sample panel schedule on first run, manual entry, or import from any Excel / CSV schedule - the TYPE and OD columns are located by header name or, failing that, by content |
+| Input | Sample panel schedule on first run, manual entry, a blank Excel template to fill in, or import from any Excel / CSV schedule - the TYPE and OD columns are located by header name or, failing that, by content |
 | Title block | Company name and logo, project name, drawing number, revision and date - printed on the PDF title block and footer, the Excel title rows and the section drawing caption |
 | Sizing | Method 1 (sum of cable diameters) and Method 2 (fill ratio by area), governing width, tray runs, fill verdict, alternative configurations, per-panel breakdown |
 | Fill standards | `practice40` (the reference workbook's 40 % rule, default), NEC 392.22(A), IEC 60364-5-52 |
@@ -29,7 +29,7 @@ npm run build
 | Thermal | IEC 60364-5-52 grouping (Table B.52.17) and ambient correction (Table B.52.14), per-circuit utilisation, indicative heat map |
 | Support | Deflection against the NEMA VE 1 span/180 limit, NEMA load class, hanger count, rod size, span sweep |
 | Bending | Minimum radius per cable type, fitting check, straight-plus-bend pulling tension estimate |
-| Export | Live-formula Excel workbook, formal PDF report with 2D/3D snapshots and a calculation stamp, DXF at 1:1 in mm, generic BIM JSON, standalone SVG |
+| Export | Live-formula Excel workbook, blank Excel schedule template, formal PDF report with 2D/3D snapshots and a calculation stamp, DXF at 1:1 in mm, generic BIM JSON, standalone SVG |
 
 ## Architecture
 
@@ -107,10 +107,37 @@ templates differ from office to office, so the parser does not assume a fixed la
    dropped.
 
 The preview dialog states which sheet, header row and TYPE / OD columns were used, so the
-mapping can be checked before the rows are applied. `src/import/__tests__/` holds a real panel
-schedule (`DB-RMW-L0-LP`, TYPE in column D, OD in column AO, 30+ fixture columns in between) as a
-regression fixture; the sample data shipped in the app is generated from it through this same
+mapping can be checked before the rows are applied. `src/import/__tests__/` holds three real
+workbooks as regression fixtures, deliberately different from one another: a panel schedule
+(`DB-RMW-L0-LP`, TYPE in column D, OD in column AO, 30+ fixture columns in between), and two
+cable tray calculation workbooks whose schedules sit in different columns
+(`DB-UTILITY`, TYPE in I and OD in K; `FGW`, TYPE in G and OD in I, 166 circuits over four
+panels). The sample data shipped in the app is generated from the first one through this same
 importer.
+
+Where a cable tray calculation workbook carries its own `CABLE DATA (OD)` sheet, the diameters
+are read from it: the OD column on the schedule sheet is usually an `INDEX`/`MATCH` formula, and
+a file written by a program has no cached result for it, so the cell reads as empty. The type
+code is looked up in that sheet instead, which is how the app arrives at the same diameters the
+workbook itself would display.
+
+## The Excel template
+
+`Template Excel`, next to the import button, downloads a blank workbook in the same four-sheet
+shape - `CABLE DATA (OD)`, `CABLE SCHEDULE`, `SUMMARY BY TYPE`, `TRAY CALCULATION` - with the
+header captions in whichever language the app is set to. Only the yellow cells are typed in;
+OD, total width, total area, the per-type / per-panel / per-category summaries and the whole
+tray sizing are live formulas, so the workbook calculates on its own in Excel with no app
+involved. The TYPE column is a dropdown restricted to the codes on the OD sheet, which is what
+guarantees the file imports again: `src/export/__tests__/scheduleTemplate.test.ts` sends the
+generated workbook straight back through the real importer, in both languages, and checks the
+schedule comes out with the same rows, types and sizing it went in with.
+
+Rows already in the app are written into the template as a worked example, followed by 60 blank
+input rows. An empty schedule still produces a usable template - the OD table, the formulas and
+the blank rows are all there. Note that the workbook's formulas are not recalculated by the test
+suite (no spreadsheet engine is available in CI); what is checked is that they are the same
+expressions `src/core/traySizing.ts` evaluates and that every reference resolves.
 
 ## Data provenance - read before issuing a calculation
 
