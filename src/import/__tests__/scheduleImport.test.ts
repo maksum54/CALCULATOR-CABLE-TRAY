@@ -103,3 +103,46 @@ describe('importScheduleFromExcel - panel schedule template', () => {
     expect(runs[55].loadKw).toBeCloseTo(21.9999, 4);
   });
 });
+
+// Family kabel harus datang dari KONSTRUKSI yang ditulis di file, bukan dari diameternya.
+//
+// Laporan: feeder "2x4C-120mm2 Cu/XLPE/PVC" terbaca sebagai NYFGbY 4C x 120 - kabel PVC
+// BERARMOUR - karena OD 50 di file kebetulan lebih dekat ke 50.5 miliknya daripada ke 45.5
+// milik N2XY. Salah family bukan soal label: KHA 379 A jadi 314 A, koreksi suhu pindah dari
+// tabel XLPE (0.96) ke tabel PVC (0.94), berat dan radius tekuk ikut salah.
+describe('cable family from the construction string', () => {
+  it('reads XLPE as N2XY even when an armoured OD is the closer fit', () => {
+    // Tanpa petunjuk konstruksi, OD 50 memang menunjuk ke NYFGbY.
+    expect(matchCatalog('4C-120', 50).typeCode).toBe('NYFGbY-4C-120');
+    // Dengan konstruksi dari kolom deskripsi, isolasinya yang menentukan.
+    const m = matchCatalog('4C-120', 50, '2x4C-120mm2 Cu/XLPE/PVC');
+    expect(m.typeCode).toBe('N2XY-4C-120');
+    // OD di file tidak dibuang diam-diam - selisihnya dilaporkan untuk diperiksa.
+    expect(m.quality).toBe('odMismatch');
+    expect(m.fileOdMm).toBe(50);
+  });
+
+  it('separates the earth conductor from the power cores of the same size', () => {
+    expect(matchCatalog('1C-240', 24.5, '4x(4x1C-240mm2 Cu/XLPE/PVC)').typeCode).toBe('N2XY-1C-240');
+    // Inti tunggal ber-PVC adalah NYA, bukan NYY dan bukan N2XY.
+    expect(matchCatalog('1C-240', 24.5, 'E 2x1C-240mm2 Cu/PVC').typeCode).toBe('NYA-1C-240');
+  });
+
+  it('puts multicore PVC on NYY and armour on NYFGbY', () => {
+    expect(matchCatalog('4C-120', undefined, '4x120mm2 Cu/PVC/PVC').typeCode).toBe('NYY-4C-120');
+    expect(matchCatalog('4C-120', undefined, '4x120mm2 Cu/PVC/SFWA/PVC').typeCode).toBe('NYFGbY-4C-120');
+    // Armour menang atas isolasi: kabel berarmour tetap berisolasi XLPE atau PVC.
+    expect(matchCatalog('4C-120', undefined, '4x120mm2 Cu/XLPE/SFWA/PVC').typeCode).toBe('NYFGbY-4C-120');
+  });
+
+  it('still lets a trade name in the text win', () => {
+    expect(matchCatalog('NYY 4C x 120', undefined, 'Cu/XLPE/PVC').typeCode).toBe('NYY-4C-120');
+  });
+
+  it('falls back to the OD when the construction names a family we have no entry for', () => {
+    // Katalog hanya punya satu entri FRC, jadi 1C-120 FRC tidak ada padanannya. Baris tetap
+    // masuk lewat OD daripada hilang - deskripsinya yang memberi tahu user kabel aslinya.
+    const m = matchCatalog('1C-120 (FRC)', 19.5, 'E 1C-120mm2 Cu/LSZH');
+    expect(m.typeCode).toBe('N2XY-1C-120');
+  });
+});

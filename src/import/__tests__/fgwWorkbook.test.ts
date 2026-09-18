@@ -61,21 +61,38 @@ describe('FGW cable tray calculation workbook', () => {
     expect(incoming.fileOdMm).toBe(24.5);
   });
 
-  it('flags only the FRC and single-core types our catalogue does not carry', async () => {
+  it('takes the cable family from the construction, not from the diameter', async () => {
+    const { rows } = await importScheduleFromExcel(asFile());
+
+    // "2x4C-120mm2 Cu/XLPE/PVC" adalah kabel XLPE tanpa armour = N2XY. Sebelum perbaikan
+    // baris ini jatuh ke NYFGbY 4C x 120 (PVC BERARMOUR) semata karena OD 50 di file lebih
+    // dekat ke 50.5 miliknya daripada ke 45.5 milik N2XY - salah KHA, salah tabel suhu.
+    const feeder = rows.find((r) => r.run.circuit === 'FEEDER DB-FGW-L0-LP')!;
+    expect(feeder.run.typeCode).toBe('N2XY-4C-120');
+
+    // Baris incoming yang sama ukurannya dipisahkan oleh konstruksinya: inti daya XLPE ke
+    // N2XY, penghantar pembumian "Cu/PVC" inti tunggal ke NYA.
+    expect(rows.find((r) => r.run.circuit === 'INCOMING MDB')!.run.typeCode).toBe('N2XY-1C-240');
+    expect(rows.find((r) => r.run.circuit === 'INCOMING MDB (E)')!.run.typeCode).toBe('NYA-1C-240');
+    expect(rows.find((r) => r.run.circuit === 'FEEDER DB-FGW-L0-LP (E)')!.run.typeCode).toBe('NYA-1C-120');
+  });
+
+  it('flags every row whose diameter disagrees with the type the file describes', async () => {
     const { rows, warnings } = await importScheduleFromExcel(asFile());
-    // 1C-240, 1C-120, 3C-2.5 (FRC) dan 4C-240 (FRC) tidak ada di katalog; diameternya diambil
-    // dari entri terdekat dan ditandai supaya user memeriksanya, bukan diam-diam dipakai.
-    expect(warnings).toEqual([{ code: 'odMismatch', count: 11 }]);
-    expect(rows.filter((r) => r.quality === 'exact')).toHaveLength(155);
+    // Konstruksi menentukan tipenya; OD di file adalah nilai tipikal, jadi selisihnya
+    // dilaporkan untuk diperiksa, bukan dipakai diam-diam untuk memindahkan family.
+    expect(warnings).toEqual([{ code: 'odMismatch', count: 13 }]);
+    expect(rows.filter((r) => r.quality === 'exact')).toHaveLength(153);
     expect(rows.every((r) => r.quality !== 'unresolved')).toBe(true);
   });
 
-  it('reproduces the workbook\'s own total cable width', async () => {
+  it('stays within a fraction of a percent of the workbook\'s own total cable width', async () => {
     const { runs } = await importScheduleFromExcel(asFile());
     const sizing = calculateSizing(runs, DEFAULT_PARAMS);
     expect(sizing.totalRuns).toBe(187);
-    // Baris TOTAL sheet CABLE SCHEDULE: SOD = 3379 mm. Selisihnya hanya dari 11 baris yang
-    // tipenya tidak ada di katalog dan karena itu sudah ditandai untuk diperiksa.
-    expect(sizing.sumOdMm).toBeCloseTo(3379.2, 1);
+    // Baris TOTAL sheet CABLE SCHEDULE: SOD = 3379 mm. Selisihnya berasal dari 13 baris yang
+    // OD katalognya berbeda dari nilai tipikal di file - semuanya sudah ditandai.
+    expect(sizing.sumOdMm).toBeCloseTo(3360.4, 1);
+    expect(Math.abs(sizing.sumOdMm - 3379) / 3379).toBeLessThan(0.01);
   });
 });

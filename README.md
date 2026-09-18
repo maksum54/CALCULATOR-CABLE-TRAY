@@ -99,9 +99,14 @@ templates differ from office to office, so the parser does not assume a fixed la
    on most data rows whose values land on catalogue ODs. Columns captioned watt, ampere, kW, load
    or qty are never considered, which keeps fixture-count columns out.
 4. **Catalogue match** - `NYY 3C x 2.5mm2`, `1x4C-10mm2 Cu/XLPE/PVC`, `4C25` and `4 x 25` all
-   resolve to cores + size; the family prefix narrows it, and the file's own OD breaks the tie and
-   is cross-checked. A row whose OD disagrees with the catalogue entry is reported as a warning
-   rather than silently accepted.
+   resolve to cores + size. The family is then taken from the trade name if the file states one,
+   otherwise from the **construction string**, which is what schedules here normally write:
+   `Cu/XLPE/PVC` is N2XY, `Cu/PVC/PVC` is NYY, a single-core `Cu/PVC` is NYA, `SFWA` / `FGb` is
+   armoured NYFGbY, and `LSZH` / `MGT` is FRC. Only then does the file's OD break the tie, and
+   only between entries of the family already chosen - a diameter can never move a cable to a
+   different family, because the ODs in a schedule are typical values while the construction is
+   a statement of what the cable is. A row whose OD disagrees with the catalogue entry is
+   reported as a warning rather than silently accepted.
 5. Panel name is taken from a `PANEL` column, else from the title block above the table. Rows
    captioned TOTAL / SUB TOTAL / notes, and note rows merged across the full table width, are
    dropped.

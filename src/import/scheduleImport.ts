@@ -142,9 +142,35 @@ export function parseCoresAndSize(text: string): { cores: number; size: number }
   return undefined;
 }
 
-function familyOf(text: string): string | undefined {
+/** Nama dagang kalau memang ditulis ("NYY", "N2XY", "NYFGbY"). */
+function familyToken(text: string): string | undefined {
   const u = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
   return FAMILY_TOKENS.find((f) => u.includes(f));
+}
+
+/**
+ * Family dari string KONSTRUKSI kabel - "Cu/XLPE/PVC", "Cu/PVC", "Cu/MGT/XLPE/LSZH".
+ *
+ * Panel schedule di sini hampir selalu menulis konstruksinya, bukan nama dagangnya, dan
+ * konstruksi itu menyatakan dengan tepat kabel apa yang dimaksud. Tanpa membacanya, satu-
+ * satunya pembeda antar family yang tersisa adalah diameter - dan diameter di file umumnya
+ * nilai tipikal, bukan angka katalog. Feeder "2x4C-120mm2 Cu/XLPE/PVC" karena itu berakhir
+ * sebagai NYFGbY 4C x 120 (PVC BERARMOUR, OD 50.5) semata karena OD 50 di file kebetulan
+ * lebih dekat ke situ daripada ke N2XY yang 45.5 - padahal filenya sudah menyebut XLPE.
+ * Salah family berarti salah KHA (379 A jadi 314 A), salah tabel koreksi suhu (XLPE 0.96 jadi
+ * PVC 0.94), salah berat dan salah radius tekuk.
+ *
+ * Isolasi menentukan, bukan selubung: "Cu/XLPE/PVC" itu XLPE (PVC di belakang hanya sheath).
+ * Armour dan FRC diperiksa lebih dulu karena keduanya juga mengandung kata isolasi.
+ */
+function familyFromConstruction(text: string, cores: number): string | undefined {
+  const u = text.toUpperCase();
+  if (/SFWA|\bFGB\b|\bSTA\b|ARMOU?R/.test(u)) return 'NYFGBY';
+  if (/LSZH|\bMGT\b|\bFRC\b/.test(u)) return 'FRC';
+  if (/XLPE/.test(u)) return 'N2XY';
+  // NYA adalah kabel inti tunggal; PVC berinti banyak adalah NYY.
+  if (/\bPVC\b/.test(u)) return cores === 1 ? 'NYA' : 'NYY';
+  return undefined;
 }
 
 export type MatchQuality =
@@ -175,8 +201,11 @@ export interface CatalogMatch {
  * Urutan: cores+size (plus family kalau disebut) -> verifikasi silang dengan OD ->
  * OD terdekat -> default.
  */
-export function matchCatalog(text: string, odHint?: number): CatalogMatch {
+export function matchCatalog(text: string, odHint?: number, constructionHint?: string): CatalogMatch {
   const t = norm(text);
+  // Kolom TYPE sering hanya berisi kode ukuran ("4C-120"); konstruksinya ada di kolom
+  // deskripsi. Keduanya dipakai untuk menentukan family.
+  const familyText = constructionHint ? `${t} ${norm(constructionHint)}` : t;
 
   // 1) Id katalog ditulis apa adanya ("NYY-3C-4", "3C-4").
   //
@@ -193,7 +222,7 @@ export function matchCatalog(text: string, odHint?: number): CatalogMatch {
   // 2) Urai jumlah core dan luas penampang, saring dengan family bila disebut.
   const parsed = parseCoresAndSize(t);
   if (parsed) {
-    const fam = familyOf(t);
+    const fam = familyToken(familyText) ?? familyFromConstruction(familyText, parsed.cores);
     const bySize = ALL_ENTRIES.filter((e) => e.cores === parsed.cores && e.sizeMm2 === parsed.size);
     const pool = fam
       ? (bySize.filter((e) => e.family.toUpperCase().replace(/[^A-Z0-9]/g, '') === fam) ?? [])
@@ -202,7 +231,9 @@ export function matchCatalog(text: string, odHint?: number): CatalogMatch {
 
     if (candidates.length > 0) {
       if (odHint && odHint > 0) {
-        // OD di file adalah pemutus kalau satu ukuran dimiliki beberapa family.
+        // OD di file memutus HANYA di antara kandidat yang family-nya sudah lolos saringan di
+        // atas. Kalau family sudah diketahui dari konstruksi, OD tidak boleh memindahkan kabel
+        // ke family lain - selisihnya dilaporkan sebagai odMismatch supaya user memeriksanya.
         const byOd = candidates.find((e) => Math.abs(e.odMm - odHint) <= 0.6);
         if (byOd) return { typeCode: byOd.id, quality: 'exact', fileOdMm: odHint };
         return {
@@ -536,8 +567,10 @@ function parseGrid(grid: Grid, sheetName: string, odLookup: OdLookup = new Map()
     if (!typeText && odNum === undefined && !hasIdentity) continue;
     if (typeText.length > 80 && !odNum) continue;
 
-    const sourceText = typeText || cell(col.desc);
-    const match = matchCatalog(sourceText, odNum);
+    const sourceText = typeText || descText;
+    // Deskripsi ikut diberikan sebagai petunjuk konstruksi: kolom TYPE biasanya hanya kode
+    // ukuran, sedangkan "Cu/XLPE/PVC" yang menentukan family ada di kolom deskripsi.
+    const match = matchCatalog(sourceText, odNum, descText);
 
     // Kalau file punya kolom OD, angka OD adalah penyaring paling tegas terhadap baris
     // rekap dan catatan - tapi tidak boleh mutlak. Workbook yang ditulis program lain
