@@ -222,6 +222,15 @@ export const DICT = {
   importAppend: { id: 'Tambahkan ke schedule', en: 'Append to schedule' },
   importReplace: { id: 'Ganti schedule', en: 'Replace schedule' },
   importFailed: { id: 'Import Gagal', en: 'Import Failed' },
+  importLegacyFormat: {
+    id: 'Format ini tidak bisa dibaca. Buka di Excel atau LibreOffice lalu simpan ulang sebagai .xlsx (Excel Workbook), baru import lagi.',
+    en: 'This format cannot be read. Open it in Excel or LibreOffice and save it again as .xlsx (Excel Workbook), then import it.',
+  },
+  downloadTemplate: { id: 'Template Excel', en: 'Excel template' },
+  downloadTemplateHint: {
+    id: 'Unduh workbook kosong (CABLE DATA (OD), CABLE SCHEDULE, SUMMARY BY TYPE, TRAY CALCULATION) berformula hidup. Isi di Excel, lalu masukkan lagi lewat Import Excel/CSV.',
+    en: 'Download a blank live-formula workbook (CABLE DATA (OD), CABLE SCHEDULE, SUMMARY BY TYPE, TRAY CALCULATION). Fill it in in Excel, then bring it back through Import Excel/CSV.',
+  },
   importMoreRows: { id: 'baris lagi tidak ditampilkan', en: 'more rows not shown' },
   companyName: { id: 'Nama perusahaan', en: 'Company name' },
   companyLogo: { id: 'Logo perusahaan', en: 'Company logo' },

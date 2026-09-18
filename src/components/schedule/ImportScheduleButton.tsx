@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { saveAs } from 'file-saver';
 import {
   importScheduleFromCsv,
   importScheduleFromExcel,
@@ -13,16 +14,24 @@ import { Badge, Button } from '../ui';
 import { useT } from '../ui/useT';
 
 /**
- * Tombol "Import Excel/CSV" + modal pratinjau. File dibaca sepenuhnya di
- * browser (tanpa server). User dapat melihat hasil parsing dulu, lalu
- * memilih menambahkan ke schedule yang ada atau menggantinya.
+ * Tombol "Import Excel/CSV" + "Template Excel" + modal pratinjau. File dibaca sepenuhnya di
+ * browser (tanpa server). User dapat melihat hasil parsing dulu, lalu memilih menambahkan ke
+ * schedule yang ada atau menggantinya.
+ *
+ * Kedua tombol tinggal bersama karena memakai satu dialog error yang sama, dan karena memang
+ * satu alur: unduh template, isi di Excel, lalu import lagi lewat tombol di sebelahnya.
  */
 export function ImportScheduleButton() {
   const t = useT();
+  const lang = useAppStore((s) => s.lang);
+  const project = useAppStore((s) => s.project);
+  const params = useAppStore((s) => s.params);
+  const schedule = useAppStore((s) => s.schedule);
   const replaceSchedule = useAppStore((s) => s.replaceSchedule);
   const addRun = useAppStore((s) => s.addRun);
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [templateBusy, setTemplateBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<(ImportResult & { fileName: string }) | null>(null);
   /** Tipe yang dipilih ulang user di pratinjau, per id baris. */
@@ -35,6 +44,11 @@ export function ImportScheduleButton() {
     setResult(null);
     try {
       const name = file.name.toLowerCase();
+      // Format Excel lama tidak bisa dibaca ExcelJS sama sekali. Tanpa pemeriksaan ini yang
+      // muncul adalah pesan zip rusak, yang membuat user mengira filenya yang bermasalah.
+      if (/\.(xls|xlsb|ods)$/.test(name)) {
+        throw new Error(t('importLegacyFormat'));
+      }
       const parsed = name.endsWith('.csv')
         ? await importScheduleFromCsv(file)
         : await importScheduleFromExcel(file);
@@ -70,6 +84,23 @@ export function ImportScheduleButton() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result, onlyReview, overrides]);
 
+  /** Unduh workbook kosong berformat sama dengan yang dibaca importer di sebelahnya. */
+  const downloadTemplate = async () => {
+    setTemplateBusy(true);
+    setError(null);
+    try {
+      // ExcelJS ~250 kB, sama seperti pada import - hanya dimuat saat tombolnya ditekan.
+      const { buildScheduleTemplate } = await import('../../export/scheduleTemplate');
+      const blob = await buildScheduleTemplate({ lang, project, params, schedule });
+      const slug = (project.drawingNo || 'cable-tray').replace(/[^\w.-]+/g, '_');
+      saveAs(blob, `${slug}-cable-schedule-template.xlsx`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTemplateBusy(false);
+    }
+  };
+
   const apply = (mode: 'replace' | 'append') => {
     if (!result) return;
     // Tipe yang dikoreksi user menang atas tebakan parser.
@@ -87,7 +118,17 @@ export function ImportScheduleButton() {
       <input
         ref={inputRef}
         type="file"
-        accept=".xlsx,.xlsm,.csv"
+        // Ekstensi saja tidak cukup: pemilih berkas di Android, iOS, dan Google Drive menyaring
+        // berdasarkan MIME type dan membuat file .xlsx tidak bisa dipilih kalau tipenya tidak
+        // ikut disebut - dari sisi user itu terlihat persis seperti aplikasi menolak filenya.
+        accept={[
+          '.xlsx',
+          '.xlsm',
+          '.csv',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel.sheet.macroEnabled.12',
+          'text/csv',
+        ].join(',')}
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -96,6 +137,9 @@ export function ImportScheduleButton() {
       />
       <Button onClick={() => inputRef.current?.click()} disabled={busy}>
         {busy ? '...' : t('importSchedule')}
+      </Button>
+      <Button onClick={() => void downloadTemplate()} disabled={templateBusy} title={t('downloadTemplateHint')}>
+        {templateBusy ? '...' : t('downloadTemplate')}
       </Button>
 
       {error && (
