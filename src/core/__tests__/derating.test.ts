@@ -3,7 +3,7 @@
 // kabel. Yang benar: tiap run memikul arus total dibagi jumlah run.
 
 import { describe, expect, it } from 'vitest';
-import { calculateDerating, designCurrent, groupingFactor, temperatureFactor } from '../derating';
+import { calculateDerating, designCurrent, groupingFactor, temperatureFactor, thermalIndexOf } from '../derating';
 import { DEFAULT_PARAMS } from '../defaults';
 import { arrangeCables, DEFAULT_ARRANGE_OPTIONS } from '../arranger';
 import { findEntry } from '../catalog';
@@ -76,5 +76,87 @@ describe('parallel runs share the load', () => {
     const single: CableRun[] = [{ ...feeder, id: 'F2', runs: 1 }];
     const r = calculateDerating(single, place(single), DEFAULT_PARAMS, 1);
     expect(r.worstUtilisation).toBeGreaterThan(1);
+  });
+});
+
+// Laporan kedua: seluruh kolom THERMAL HEAT MAP merah penuh padahal tidak ada satu kabel pun
+// yang melewati KHA terkoreksi - kabel 5C-10 (71 A) dengan beban 34 A tampil hampir merah
+// penuh di sebelah angka utilisasinya sendiri yang hijau 76 %.
+//
+// Penyebabnya index termal mengalikan utilisasi dengan (1 + 0.2 x enclosure) lalu di-clamp ke
+// 1. Legend di panel yang sama berskala 0 / 50 / 100 %, jadi batangnya dibaca sebagai persen
+// terhadap batas - padahal SEMUA yang di atas ~83 % menghasilkan batang yang sama persis.
+// Kabel patuh 89 % dan kabel berbahaya 200 % jadi tidak bisa dibedakan, justru perbedaan yang
+// menjadi alasan kolom itu ada.
+
+describe('thermal index vs the utilisation next to it', () => {
+  const enclosed = 1;
+  const edge = 0;
+
+  it('keeps full scale for a cable that really is at or above its limit', () => {
+    expect(thermalIndexOf(1, edge, true)).toBe(1);
+    expect(thermalIndexOf(1.5, edge, true)).toBe(1);
+    expect(thermalIndexOf(2, enclosed, true)).toBe(1);
+  });
+
+  it('never lets a compliant cable reach full scale, however buried it is', () => {
+    for (const util of [0.5, 0.74, 0.83, 0.886, 0.95, 0.99]) {
+      expect(thermalIndexOf(util, enclosed, true)).toBeLessThan(1);
+    }
+  });
+
+  it('separates a compliant 89 % from an overloaded 200 %', () => {
+    // Keduanya dulu bernilai 1.00 - batang yang sama, warna yang sama.
+    expect(thermalIndexOf(0.886, enclosed, true)).toBeLessThan(thermalIndexOf(2, enclosed, true));
+  });
+
+  it('tracks the utilisation it sits beside instead of overstating it', () => {
+    // 74 % dulu menggambar batang 89 %. Sekarang selisihnya tinggal nudge enclosure.
+    expect(thermalIndexOf(0.739, enclosed, true)).toBeCloseTo(0.739 + 0.15 * (1 - 0.739), 6);
+    expect(thermalIndexOf(0.739, edge, true)).toBeCloseTo(0.739, 6);
+  });
+
+  it('lets enclosure push up, never down, and never past the next band', () => {
+    for (const util of [0.2, 0.5, 0.9]) {
+      expect(thermalIndexOf(util, enclosed, true)).toBeGreaterThan(thermalIndexOf(util, edge, true));
+      expect(thermalIndexOf(util, edge, true)).toBeCloseTo(util, 6);
+    }
+    // Monotonic in loading: a hotter cable can never rank below a cooler one.
+    expect(thermalIndexOf(0.6, enclosed, true)).toBeLessThan(thermalIndexOf(0.9, edge, true));
+  });
+
+  it('falls back to a muted position-only reading with no load figure', () => {
+    expect(thermalIndexOf(0, enclosed, false)).toBeCloseTo(0.35, 6);
+    expect(thermalIndexOf(0, edge, false)).toBe(0);
+  });
+});
+
+describe('the single temperature factor on the panel', () => {
+  const mixed: CableRun[] = [
+    // NYY = PVC (0.94 at 35 degC), the project 5C-10 = XLPE (0.96). Resolved in this order, so
+    // the old "keep the last one" behaviour reported the XLPE 0.96 for the whole schedule.
+    { ...feeder, id: 'P1', runs: 1, typeCode: 'NYY-4C-120', loadKw: 50 },
+    { ...feeder, id: 'X1', runs: 1, typeCode: '5C-10', loadKw: 10, circuit: 'XLPE' },
+  ];
+
+  it('reports the more severe of the insulations present, not whichever came last', () => {
+    const r = calculateDerating(mixed, place(mixed), DEFAULT_PARAMS, 1);
+    const pvc = temperatureFactor(DEFAULT_PARAMS.ambientTempC, false);
+    const xlpe = temperatureFactor(DEFAULT_PARAMS.ambientTempC, true);
+    expect(pvc).toBeLessThan(xlpe);
+    expect(r.temperatureFactor).toBeCloseTo(pvc, 6);
+    expect(r.combinedFactor).toBeCloseTo(r.groupingFactor * pvc, 6);
+  });
+
+  it('says so, so the one number on screen is not read as applying to every cable', () => {
+    const r = calculateDerating(mixed, place(mixed), DEFAULT_PARAMS, 1);
+    expect(r.messages.some((m) => /mixes PVC and XLPE/i.test(m))).toBe(true);
+  });
+
+  it('stays silent when every cable shares one insulation', () => {
+    const only: CableRun[] = [{ ...feeder, id: 'S1', runs: 1, loadKw: 50 }];
+    const r = calculateDerating(only, place(only), DEFAULT_PARAMS, 1);
+    expect(r.messages.some((m) => /mixes PVC and XLPE/i.test(m))).toBe(false);
+    expect(r.temperatureFactor).toBeCloseTo(temperatureFactor(DEFAULT_PARAMS.ambientTempC, false), 6);
   });
 });
