@@ -72,6 +72,33 @@ interface AppState {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+/**
+ * Filter panel yang masih masuk akal untuk schedule yang diberikan.
+ *
+ * Filter panel hidup terpisah dari schedule, jadi begitu schedule berubah - di-import ulang,
+ * baris terakhir sebuah panel dihapus, atau nama panelnya diganti - filter bisa menunjuk ke
+ * panel yang sudah tidak ada lagi. Akibatnya bukan cuma tabel yang kosong: SEMUA tampilan dan
+ * seluruh export membaca lewat filteredSchedule, jadi aplikasi menunjukkan nol kabel padahal
+ * datanya utuh di dalam store.
+ *
+ * Yang membuatnya sulit ditebak adalah tampilannya. Sebuah <select> yang value-nya tidak ada
+ * di antara option-nya membuat browser menampilkan option pertama - "Semua panel" - sehingga
+ * layar berkata "semua panel, nol kabel", persis kebalikan dari keadaan sebenarnya. Karena itu
+ * filter dipulihkan di sini, di satu tempat yang dilewati setiap perubahan schedule, bukan di
+ * masing-masing pemanggil.
+ */
+const validPanelFilter = (schedule: CableRun[], panelFilter: string): string =>
+  panelFilter === 'ALL' || schedule.some((r) => r.panel === panelFilter) ? panelFilter : 'ALL';
+
+/** Patch schedule + filter yang sudah dipastikan konsisten satu sama lain. */
+const withSchedule = (
+  schedule: CableRun[],
+  panelFilter: string,
+): { schedule: CableRun[]; panelFilter: string } => ({
+  schedule,
+  panelFilter: validPanelFilter(schedule, panelFilter),
+});
+
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
@@ -107,13 +134,22 @@ export const useAppStore = create<AppState>()(
       setSelectedRun: (selectedRunId) => set({ selectedRunId }),
       setScenePng: (scenePng) => set({ scenePng }),
 
-      addRun: (run) => set((s) => ({ schedule: [...s.schedule, run] })),
+      addRun: (run) => set((s) => withSchedule([...s.schedule, run], s.panelFilter)),
       updateRun: (id, patch) =>
-        set((s) => ({ schedule: s.schedule.map((r) => (r.id === id ? { ...r, ...patch } : r)) })),
-      removeRun: (id) => set((s) => ({ schedule: s.schedule.filter((r) => r.id !== id) })),
-      replaceSchedule: (schedule) => set({ schedule, selectedTrayIndex: 0 }),
+        set((s) =>
+          withSchedule(
+            s.schedule.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+            s.panelFilter,
+          ),
+        ),
+      removeRun: (id) =>
+        set((s) => withSchedule(s.schedule.filter((r) => r.id !== id), s.panelFilter)),
+      // Mengganti seluruh schedule berarti mulai dari data baru, jadi filternya selalu dibuka
+      // lagi - bukan hanya kalau panel lamanya kebetulan hilang. Kalau tidak, user yang baru
+      // meng-import 166 kabel hanya melihat sebagian tanpa tahu sebabnya.
+      replaceSchedule: (schedule) => set({ schedule, panelFilter: 'ALL', selectedTrayIndex: 0 }),
       loadSample: () => set({ schedule: SAMPLE_SCHEDULE, panelFilter: 'ALL', selectedTrayIndex: 0 }),
-      clearSchedule: () => set({ schedule: [], selectedTrayIndex: 0 }),
+      clearSchedule: () => set({ schedule: [], panelFilter: 'ALL', selectedTrayIndex: 0 }),
     }),
     {
       name: 'cable-tray-calculator',
@@ -123,7 +159,13 @@ export const useAppStore = create<AppState>()(
       // user's last visit would come back undefined. Merge it field by field instead.
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<AppState>;
-        return { ...current, ...p, project: { ...current.project, ...(p.project ?? {}) } };
+        const merged = { ...current, ...p, project: { ...current.project, ...(p.project ?? {}) } };
+        // Sesi yang tersimpan dari versi sebelum filter ini dijaga bisa berisi pasangan yang
+        // sudah tidak cocok - schedule hasil import dengan filter panel dari schedule lama.
+        // Memulihkannya di sini membuat sesi yang sudah terlanjur rusak sembuh saat dibuka
+        // lagi, tanpa user harus tahu apa pun tentang localStorage.
+        merged.panelFilter = validPanelFilter(merged.schedule, merged.panelFilter);
+        return merged;
       },
     },
   ),
