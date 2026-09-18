@@ -160,7 +160,11 @@ export interface WeightResult {
 export interface DeratingResult {
   /** Grouping factor from IEC 60364-5-52 Table B.52.17. */
   groupingFactor: number;
-  /** Ambient temperature correction factor. */
+  /**
+   * Ambient temperature correction factor. Where the schedule mixes PVC and XLPE this is the
+   * MORE SEVERE of the two - a summary must never read better than the cables it describes.
+   * Each cable is derated with the factor for its own insulation.
+   */
   temperatureFactor: number;
   combinedFactor: number;
   circuits: number;

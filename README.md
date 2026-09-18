@@ -173,4 +173,15 @@ the product certificate.
 loading with how enclosed it is by its neighbours. It is an indicative ranking that shows where
 to look, not an IEC 60287 conductor temperature — IEC 60287 needs soil/air thermal resistivity,
 per-circuit load factors and actual conductor temperatures, none of which a panel schedule
-contains.
+contains. Loading sets the level and enclosure can only nudge it upwards within the headroom a
+compliant cable still has, so the bar tracks the utilisation printed beside it and the end of
+the scale is reserved for a cable at or above its derated ampacity.
+
+**Utilisation is measured against the derated ampacity, not the catalogue figure.** A 71 A
+cable on a tray shared with 9+ others in two layers at 35 °C carries 71 × 0.68 × 0.96 = 46.3 A,
+so a 34 A load reads 74 %, not 48 %. The grouping factor comes from the number of cables and
+the number of layers, and the ambient correction from the site temperature — all three are
+editable design parameters. Note that Table B.52.17's rows are *trays*, and the app feeds them
+the number of cable **layers**: a conservative reading, since IEC 60364-5-52 requires a further
+reduction for cables stacked in more than one layer but does not tabulate one. Setting the
+layer count to 1 (more tray runs, none stacked) moves the factor from 0.68 to 0.73.

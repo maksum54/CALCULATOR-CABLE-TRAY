@@ -95,21 +95,25 @@ export function designCurrent(
 /**
  * Thermal ranking for the heat map, 0 (cool) .. 1 (hot).
  *
- * Loading has to dominate, and it must not be capped below full. The first version averaged
- * 0.55 x enclosure + 0.45 x min(utilisation, 1), which had two consequences an engineer cannot
- * live with: two identical circuits read differently purely because of where they sat in the
- * tray, and - worse - a cable at 105 % of its derated ampacity out at the tray edge scored
- * 0.56 while a cable at 40 % buried mid-stack scored 0.73, so the column could show an
- * overloaded cable as cooler than a safe one and hide the overload entirely.
+ * Utilisation sets the level and enclosure can only push it up, never down. Where the circuit
+ * carries no load figure there is nothing to rank, so the value falls back to a muted
+ * position-only indication and the table shows the utilisation as unknown rather than as zero.
  *
- * Utilisation now sets the level and enclosure can only push it up, never down; anything at or
- * above its derated ampacity pegs at full red. Where the circuit carries no load figure there
- * is nothing to rank, so the value falls back to a muted position-only indication and the table
- * shows the utilisation as unknown rather than as zero.
+ * The enclosure nudge lives INSIDE the headroom a compliant cable still has, and full scale is
+ * reserved for a cable at or above its derated ampacity. The previous version multiplied
+ * utilisation by up to 1.2 and clamped, which broke the column in the way that matters: with
+ * the legend on the same panel labelled 0 / 50 / 100 %, a cable at 74 % of its limit drew an
+ * 89 % bar next to its own green "74 %", and EVERYTHING from about 83 % upwards drew the same
+ * full red bar - so a compliant 89 % and a dangerous 200 % were indistinguishable, which is
+ * precisely the distinction the column exists to make. A schedule that passes everywhere now
+ * reads as passing, and a bar only reaches the end of the scale when a cable really is at its
+ * limit.
  */
 export function thermalIndexOf(utilisation: number, enclosure: number, loadKnown: boolean): number {
   if (!loadKnown) return 0.35 * enclosure;
-  return Math.min(1, utilisation * (1 + 0.2 * enclosure));
+  if (utilisation >= 1) return 1;
+  const enc = Math.min(1, Math.max(0, enclosure));
+  return utilisation + 0.15 * enc * (1 - utilisation);
 }
 
 /**
@@ -159,12 +163,20 @@ export function calculateDerating(
     byPosition.set(key, [...(byPosition.get(key) ?? []), c]);
   }
 
-  let avgTemp = 1;
+  // The panel shows ONE temperature factor, but PVC and XLPE derate differently (0.94 vs 0.96
+  // at 35 degC), so a schedule carrying both has no single correct number to show. This used to
+  // keep whichever cable happened to be resolved last, which could report 0.96 while most of
+  // the schedule was actually derated at 0.94 - a summary optimistic against the cables it
+  // claims to describe. The most severe factor present is shown instead, and a note says so
+  // when the two are mixed.
+  let worstTemp = 1;
+  const insulations = new Set<string>();
   const perCable: DeratedCable[] = [];
   for (const { run, entry } of resolved) {
     const isXlpe = /XLPE/i.test(entry.construction);
+    insulations.add(isXlpe ? 'XLPE' : 'PVC');
     const tf = temperatureFactor(params.ambientTempC, isXlpe);
-    avgTemp = tf;
+    worstTemp = Math.min(worstTemp, tf);
     const base = ampacityOf(entry) ?? 0;
     const derated = base * gf * tf;
     const design = designCurrent(run.loadKw, entry.cores, params.systemVoltageV, params.powerFactor);
@@ -195,11 +207,14 @@ export function calculateDerating(
   if (worst > 1) {
     messages.push('At least one circuit exceeds its derated ampacity - increase the cable size, space the cables out, or split the tray.');
   }
+  if (insulations.size > 1) {
+    messages.push(`The schedule mixes PVC and XLPE cables, which take different ambient corrections at ${params.ambientTempC} degC (Table B.52.14). The factor shown is the more severe of the two; each cable is derated with its own.`);
+  }
 
   return {
     groupingFactor: gf,
-    temperatureFactor: avgTemp,
-    combinedFactor: gf * avgTemp,
+    temperatureFactor: worstTemp,
+    combinedFactor: gf * worstTemp,
     circuits,
     layersUsed,
     perCable,
